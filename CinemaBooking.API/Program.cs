@@ -1,3 +1,4 @@
+using CinemaBooking.API.Autentification;
 using CinemaBooking.API.CQRS.Behaviors;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
@@ -18,7 +19,6 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-builder.Services.AddCors();
 
 builder.Services.AddMediatR(cfg =>
 {
@@ -36,8 +36,17 @@ builder.Services.AddDbContext<CinemaBookingContext>(options =>
            .EnableSensitiveDataLogging(builder.Environment.IsDevelopment());
 });
 
+builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+
+var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
+    ?? throw new InvalidOperationException("JWT configuration is missing.");
+if (string.IsNullOrWhiteSpace(jwtOptions.Key))
+{
+    throw new InvalidOperationException("JWT key is missing.");
+}
+
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
-builder.Services.AddScoped<JwtTokenService>();
+
 builder.Services.AddScoped<IMovieService, MovieService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IShowtimeService, ShowtimeService>();
@@ -49,6 +58,9 @@ builder.Services.AddIdentityCore<ApplicationUser>(opt =>
 {
     opt.User.RequireUniqueEmail = true;
     opt.Password.RequiredLength = 6;
+    opt.Password.RequireDigit = true;
+    opt.Password.RequireLowercase = true;
+    opt.Password.RequireUppercase = true;
     opt.Password.RequireNonAlphanumeric = true;
     opt.Password.RequiredUniqueChars = 2;
 })
@@ -62,45 +74,26 @@ builder.Services
     {
         opt.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateLifetime = false,
+            //ValidateLifetime = false,
             ValidateIssuerSigningKey = true,
             ValidateIssuer = true,
             ValidateAudience = true,
-            ValidIssuer = "CinemaBooking.API",
-            ValidAudience = "CinemaBooking.Client",
+            ValidIssuer = jwtOptions.Issuer,
+            ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes("CinemaBookingTajniKljucDovoljnoDugacak123!"))
+                Encoding.UTF8.GetBytes(jwtOptions.Key))
         };
     });
+
+builder.Services.AddAuthorization();
+
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var app = builder.Build();
 
 using (var scope = app.Services.CreateScope())
 {
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
-
-    foreach (var roleName in new[] { "Admin", "User" })
-    {
-        if (await roleManager.FindByNameAsync(roleName) is null)
-            await roleManager.CreateAsync(new IdentityRole(roleName));
-    }
-
-    var adminEmail = "admin@cinema.com";
-    var admin = await userManager.FindByEmailAsync(adminEmail);
-    if (admin is null)
-    {
-        admin = new ApplicationUser
-        {
-            FirstName = "Admin",
-            LastName = "Cinema",
-            Email = adminEmail,
-            UserName = adminEmail
-        };
-        var result = await userManager.CreateAsync(admin, "Admin!123");
-        if (result.Succeeded)
-            await userManager.AddToRoleAsync(admin, "Admin");
-    }
+    
 }
 
 app.UseGlobalExceptionHandling();

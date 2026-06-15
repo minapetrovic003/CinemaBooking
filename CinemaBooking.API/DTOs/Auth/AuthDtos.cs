@@ -9,4 +9,4 @@ public record RegisterRequest(
 );
 
 public record LoginRequest(string Email, string Password);
-public record LoginResult(string Token);
+public record LoginResult(string Token, DateTime ExpiresAtUtc);

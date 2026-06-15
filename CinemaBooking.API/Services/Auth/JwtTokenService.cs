@@ -1,4 +1,5 @@
-﻿using CinemaBooking.Infrastructure.Identity;
+﻿using CinemaBooking.API.Autentification;
+using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
@@ -7,13 +8,15 @@ using System.Text;
 
 namespace CinemaBooking.API.Services.Auth;
 
-public class JwtTokenService
+public class JwtTokenService : IJwtTokenService
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly JwtOptions _jwtOptions;
 
-    public JwtTokenService(UserManager<ApplicationUser> userManager)
+    public JwtTokenService(UserManager<ApplicationUser> userManager, JwtOptions jwtOptions)
     {
         _userManager = userManager;
+        _jwtOptions = jwtOptions;
     }
 
     public async Task<string> CreateTokenAsync(ApplicationUser user)
@@ -23,19 +26,20 @@ public class JwtTokenService
         var claims = new List<Claim>
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
-            new Claim(ClaimTypes.Email, user.Email!),
+            new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
             new Claim("FullName", user.GetFullName()),
         };
 
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
 
         var signingKey = new SymmetricSecurityKey(
-            Encoding.UTF8.GetBytes("CinemaBookingTajniKljucDovoljnoDugacak123!"));
+            Encoding.UTF8.GetBytes(_jwtOptions.Key));
         var credentials = new SigningCredentials(signingKey, SecurityAlgorithms.HmacSha256);
 
         var token = new JwtSecurityToken(
-            issuer: "CinemaBooking.API",
-            audience: "CinemaBooking.Client",
+            issuer: _jwtOptions.Issuer,
+            audience: _jwtOptions.Audience,
+            //expires: DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes),
             claims: claims,
             signingCredentials: credentials
         );

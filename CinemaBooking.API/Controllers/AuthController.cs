@@ -1,9 +1,11 @@
-﻿using CinemaBooking.API.DTOs.Auth;
+﻿using CinemaBooking.API.Autentification;
+using CinemaBooking.API.DTOs.Auth;
 using CinemaBooking.API.Services.Auth;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Options;
 
 namespace CinemaBooking.API.Controllers;
 
@@ -12,12 +14,14 @@ namespace CinemaBooking.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
-    private readonly JwtTokenService _tokenService;
+    private readonly IJwtTokenService _tokenService;
+    private readonly JwtOptions _jwtOptions;
 
-    public AuthController(UserManager<ApplicationUser> userManager, JwtTokenService tokenService)
+    public AuthController(UserManager<ApplicationUser> userManager, IJwtTokenService tokenService, IOptions<JwtOptions> jwtOptions)
     {
         _userManager = userManager;
         _tokenService = tokenService;
+        _jwtOptions = jwtOptions.Value;
     }
 
     [HttpPost("register")]
@@ -63,6 +67,6 @@ public class AuthController : ControllerBase
             return Unauthorized(new { Message = "Invalid email or password." });
 
         var token = await _tokenService.CreateTokenAsync(user);
-        return Ok(new LoginResult(token));
+        return Ok(new LoginResult(token, DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes)));
     }
 }
