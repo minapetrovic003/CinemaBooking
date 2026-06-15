@@ -1,0 +1,53 @@
+﻿using CinemaBooking.API.DTOs.Payments;
+using CinemaBooking.API.Services;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CinemaBooking.API.Controllers;
+
+[ApiController]
+[Route("payments")]
+[Authorize]
+public class PaymentsController : ControllerBase
+{
+    private readonly IPaymentService _paymentService;
+
+    public PaymentsController(IPaymentService paymentService)
+        => _paymentService = paymentService;
+
+    [HttpGet("{id}")]
+    public IActionResult GetById(long id)
+    {
+        var payment = _paymentService.GetById(id);
+        return payment is null
+            ? NotFound(new { Message = $"Payment with id {id} not found." })
+            : Ok(payment);
+    }
+
+    [HttpPost]
+    public IActionResult Create([FromBody] CreatePaymentRequest request)
+    {
+        var (dto, errorMessage, statusCode) = _paymentService.Create(request);
+
+        return statusCode switch
+        {
+            400 => BadRequest(new { Message = errorMessage }),
+            404 => NotFound(new { Message = errorMessage }),
+            409 => Conflict(new { Message = errorMessage }),
+            201 => CreatedAtAction(nameof(GetById), new { id = dto!.Id }, dto),
+            _ => StatusCode(statusCode, new { Message = errorMessage })
+        };
+    }
+
+    [HttpPatch("{id}/refund")]
+    public IActionResult Refund(long id)
+    {
+        if (_paymentService.GetById(id) is null)
+            return NotFound(new { Message = $"Payment with id {id} not found." });
+
+        var (success, errorMessage) = _paymentService.Refund(id);
+        return success
+            ? NoContent()
+            : Conflict(new { Message = errorMessage });
+    }
+}
