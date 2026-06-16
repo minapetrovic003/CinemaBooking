@@ -15,13 +15,20 @@ public class CreateBookingHandler
     private readonly IUnitOfWork _uow;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationService _notificationService;
+    private readonly IPdfTicketService _pdfTicketService;
     private readonly ILogger<CreateBookingHandler> _logger;
 
-    public CreateBookingHandler(IUnitOfWork uow, UserManager<ApplicationUser> userManager, INotificationService notificationService, ILogger<CreateBookingHandler> logger)
+    public CreateBookingHandler(
+        IUnitOfWork uow,
+        UserManager<ApplicationUser> userManager,
+        INotificationService notificationService,
+        IPdfTicketService pdfTicketService,
+        ILogger<CreateBookingHandler> logger)
     {
         _uow = uow;
         _userManager = userManager;
         _notificationService = notificationService;
+        _pdfTicketService = pdfTicketService;
         _logger = logger;
     }
 
@@ -66,8 +73,6 @@ public class CreateBookingHandler
             ShowtimeId = showtime.Id,
             Status = BookingStatus.Confirmed,
             CreatedAt = DateTime.UtcNow,
-            // NAPOMENA: Seat navigation property se postavlja ovdje da bi email mogao
-            // čitati labele sjedišta bez extra DB poziva
             BookingSeats = seats.Select(s => new BookingSeat
             {
                 SeatId = s.Id,
@@ -77,7 +82,8 @@ public class CreateBookingHandler
 
         booking.CalculateTotalPrice();
 
-        // Postavljamo navigation property da NotificationService može čitati detalje
+        // Postavljamo navigation property da NotificationService i PdfTicketService
+        // mogu čitati detalje bez extra DB poziva
         booking.Showtime = showtime;
 
         _uow.Bookings.Add(booking);
@@ -104,15 +110,22 @@ public class CreateBookingHandler
             }).ToList()
         };
 
-        // Slanje emaila: ako SMTP padne, NE obaramo booking
+        // Generisanje PDF karte i slanje emaila
+        // Ako SMTP ili PDF generisanje padne, NE obaramo booking
         try
         {
-            await _notificationService.SendBookingConfirmationAsync(booking, user, cancellationToken);
+            var pdfTicket = _pdfTicketService.GenerateTicket(booking, user);
+
+            await _notificationService.SendBookingConfirmationAsync(
+                booking,
+                user,
+                pdfTicket,
+                cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Booking confirmation email nije poslan za booking #{BookingId}, korisnik {Email}",
+                "Generisanje PDF karte ili slanje emaila nije uspjelo za booking #{BookingId}, korisnik {Email}",
                 booking.Id, user.Email);
         }
 

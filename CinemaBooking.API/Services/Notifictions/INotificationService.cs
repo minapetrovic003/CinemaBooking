@@ -10,11 +10,14 @@ public interface INotificationService
         string toName,
         string subject,
         string htmlBody,
+        byte[]? attachmentBytes = null,
+        string? attachmentFileName = null,
         CancellationToken cancellationToken = default);
 
     Task SendBookingConfirmationAsync(
         Booking booking,
         ApplicationUser user,
+        byte[] pdfTicket,
         CancellationToken cancellationToken = default);
 
     Task SendCancellationNoticeAsync(
