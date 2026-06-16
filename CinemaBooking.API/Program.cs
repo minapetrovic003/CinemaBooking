@@ -30,7 +30,6 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 });
 
-
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 
 builder.Services.AddDbContext<CinemaBookingContext>(options =>
@@ -51,6 +50,10 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Key))
 
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// ── NOVO: registracija PDF servisa ──────────────────────────────────────────
+builder.Services.AddScoped<IPdfTicketService, PdfTicketService>();
+// ────────────────────────────────────────────────────────────────────────────
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
@@ -81,7 +84,6 @@ builder.Services
     {
         opt.TokenValidationParameters = new TokenValidationParameters
         {
-            ValidateLifetime = true,
             ValidateIssuerSigningKey = true,
             ValidateIssuer = true,
             ValidateAudience = true,

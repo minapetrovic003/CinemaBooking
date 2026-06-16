@@ -7,7 +7,7 @@ namespace CinemaBooking.API.Controllers;
 
 [ApiController]
 [Route("notifications")]
-[Authorize]   // Ukloni Authorize i stavi [AllowAnonymous] samo privremeno za testiranje
+[Authorize] // Za testiranje možeš privremeno staviti [AllowAnonymous]
 public class NotificationsController : ControllerBase
 {
     private readonly INotificationService _notificationService;
@@ -22,8 +22,7 @@ public class NotificationsController : ControllerBase
     }
 
     /// <summary>
-    /// Test endpoint — provjeri da li SMTP konfiguracija radi.
-    /// Zahtijeva JWT token. Za brzi test bez tokena zamijeni [Authorize] sa [AllowAnonymous].
+    /// Test endpoint za proveru SMTP konfiguracije.
     /// </summary>
     [HttpPost("test-email")]
     public async Task<IActionResult> SendTestEmail(
@@ -31,7 +30,12 @@ public class NotificationsController : ControllerBase
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.ToEmail))
-            return BadRequest(new { Message = "ToEmail je obavezan." });
+        {
+            return BadRequest(new
+            {
+                Message = "ToEmail je obavezan."
+            });
+        }
 
         try
         {
@@ -40,14 +44,25 @@ public class NotificationsController : ControllerBase
                 request.ToName,
                 request.Subject,
                 $"<p>{request.Body}</p>",
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
-            return Ok(new { Message = $"Test email uspješno poslan na {request.ToEmail}." });
+            return Ok(new
+            {
+                Message = $"Test email uspješno poslan na {request.ToEmail}."
+            });
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Test email nije poslan na {Email}", request.ToEmail);
-            return StatusCode(500, new { Message = "Slanje emaila nije uspjelo.", Detail = ex.Message });
+            _logger.LogError(
+                ex,
+                "Test email nije poslan na {Email}",
+                request.ToEmail);
+
+            return StatusCode(500, new
+            {
+                Message = "Slanje emaila nije uspjelo.",
+                Detail = ex.Message
+            });
         }
     }
 }

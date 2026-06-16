@@ -20,11 +20,16 @@ public class NotificationService : INotificationService
         _logger = logger;
     }
 
+    // -----------------------------------------------------------------------
+    // Osnovna metoda za slanje emaila (sa opcionalnim PDF prilogom)
+    // -----------------------------------------------------------------------
     public async Task SendEmailAsync(
         string toEmail,
         string toName,
         string subject,
         string htmlBody,
+        byte[]? attachmentBytes = null,
+        string? attachmentFileName = null,
         CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(_smtp.Host))
@@ -43,9 +48,20 @@ public class NotificationService : INotificationService
         message.From.Add(new MailboxAddress(_smtp.FromName, _smtp.FromEmail));
         message.To.Add(new MailboxAddress(toName, toEmail));
         message.Subject = subject;
-        message.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
 
-        using var client = new MailKit.Net.Smtp.SmtpClient();
+        var bodyBuilder = new BodyBuilder { HtmlBody = htmlBody };
+
+        if (attachmentBytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(attachmentFileName))
+        {
+            bodyBuilder.Attachments.Add(
+                attachmentFileName,
+                attachmentBytes,
+                new ContentType("application", "pdf"));
+        }
+
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using var client = new SmtpClient();
 
         await client.ConnectAsync(
             _smtp.Host,
@@ -58,13 +74,17 @@ public class NotificationService : INotificationService
         await client.DisconnectAsync(true, cancellationToken);
 
         _logger.LogInformation(
-            "Email sent | Subject: '{Subject}' | To: {Email}",
-            subject, toEmail);
+            "Email sent | Subject: '{Subject}' | To: {Email} | Attachment: {HasAttachment}",
+            subject, toEmail, attachmentBytes is { Length: > 0 });
     }
 
+    // -----------------------------------------------------------------------
+    // Potvrda rezervacije — šalje HTML email + PDF karta kao prilog
+    // -----------------------------------------------------------------------
     public async Task SendBookingConfirmationAsync(
         Booking booking,
         ApplicationUser user,
+        byte[] pdfTicket,
         CancellationToken cancellationToken = default)
     {
         var seatRows = booking.BookingSeats
@@ -77,6 +97,7 @@ public class NotificationService : INotificationService
               <h2 style="color:#1a1a2e">✅ Potvrda rezervacije</h2>
               <p>Poštovani/a <strong>{user.GetFullName()}</strong>,</p>
               <p>Vaša rezervacija je uspješno kreirana.</p>
+              <p>U prilogu se nalazi Vaša bioskopska karta u PDF formatu.</p>
               <table border="1" cellpadding="8" style="border-collapse:collapse;width:100%">
                 <tr style="background:#f0f0f0">
                   <td><b>Film</b></td>
@@ -110,14 +131,21 @@ public class NotificationService : INotificationService
             </div>
             """;
 
+        var fileName = $"Karta_Rezervacija_{booking.Id:D8}.pdf";
+
         await SendEmailAsync(
             user.Email!,
             user.GetFullName(),
-            $"Potvrda rezervacije #{booking.Id} — {booking.Showtime?.Movie?.Title}",
+            $"Cinema Booking Confirmation — {booking.Showtime?.Movie?.Title}",
             html,
+            pdfTicket,
+            fileName,
             cancellationToken);
     }
 
+    // -----------------------------------------------------------------------
+    // Otkazivanje rezervacije
+    // -----------------------------------------------------------------------
     public async Task SendCancellationNoticeAsync(
         Booking booking,
         ApplicationUser user,
@@ -164,9 +192,12 @@ public class NotificationService : INotificationService
             user.GetFullName(),
             $"Rezervacija #{booking.Id} je otkazana",
             html,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
+    // -----------------------------------------------------------------------
+    // Potvrda plaćanja
+    // -----------------------------------------------------------------------
     public async Task SendPaymentConfirmationAsync(
         Payment payment,
         ApplicationUser user,
@@ -209,9 +240,12 @@ public class NotificationService : INotificationService
             user.GetFullName(),
             $"Potvrda plaćanja #{payment.Id}",
             html,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
+    // -----------------------------------------------------------------------
+    // Potvrda povrata novca
+    // -----------------------------------------------------------------------
     public async Task SendRefundConfirmationAsync(
         Payment payment,
         ApplicationUser user,
@@ -247,6 +281,6 @@ public class NotificationService : INotificationService
             user.GetFullName(),
             $"Povrat novca za plaćanje #{payment.Id}",
             html,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 }
