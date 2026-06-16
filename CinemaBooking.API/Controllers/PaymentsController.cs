@@ -16,18 +16,18 @@ public class PaymentsController : ControllerBase
         => _paymentService = paymentService;
 
     [HttpGet("{id}")]
-    public IActionResult GetById(long id)
+    public async Task<IActionResult> GetById(long id)
     {
-        var payment = _paymentService.GetById(id);
+        var payment = await _paymentService.GetByIdAsync(id);
         return payment is null
             ? NotFound(new { Message = $"Payment with id {id} not found." })
             : Ok(payment);
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] CreatePaymentRequest request)
+    public async Task<IActionResult> Create([FromBody] CreatePaymentRequest request)
     {
-        var (dto, errorMessage, statusCode) = _paymentService.Create(request);
+        var (dto, errorMessage, statusCode) = await _paymentService.CreateAsync(request);
 
         return statusCode switch
         {
@@ -40,12 +40,12 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpPatch("{id}/refund")]
-    public IActionResult Refund(long id)
+    public async Task<IActionResult> Refund(long id)
     {
-        if (_paymentService.GetById(id) is null)
+        if (await _paymentService.GetByIdAsync(id) is null)
             return NotFound(new { Message = $"Payment with id {id} not found." });
 
-        var (success, errorMessage) = _paymentService.Refund(id);
+        var (success, errorMessage) = await _paymentService.RefundAsync(id);
         return success
             ? NoContent()
             : Conflict(new { Message = errorMessage });
