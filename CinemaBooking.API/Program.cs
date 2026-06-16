@@ -1,5 +1,6 @@
 using CinemaBooking.API.Autentification;
 using CinemaBooking.API.CQRS.Behaviors;
+using CinemaBooking.API.Extensions;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
 using CinemaBooking.API.Services.Auth;
@@ -14,12 +15,14 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
+using System.Security.Claims;
 using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
+builder.Services.AddCors();
 
 builder.Services.AddMediatR(cfg =>
 {
@@ -87,7 +90,10 @@ builder.Services
             ValidIssuer = jwtOptions.Issuer,
             ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtOptions.Key))
+                Encoding.UTF8.GetBytes(jwtOptions.Key)),
+            RoleClaimType = ClaimTypes.Role,
+            NameClaimType = ClaimTypes.Email,
+            ClockSkew = TimeSpan.FromMinutes(2)
         };
     });
 
@@ -97,10 +103,8 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
+await app.SeedIdentityAsync();  
 
-}
 
 app.UseGlobalExceptionHandling();
 app.UseRequestLogging();

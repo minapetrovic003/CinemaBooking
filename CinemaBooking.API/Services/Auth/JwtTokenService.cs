@@ -28,7 +28,9 @@ public class JwtTokenService : IJwtTokenService
         {
             new Claim(ClaimTypes.NameIdentifier, user.Id),
             new Claim(ClaimTypes.Email, user.Email ?? string.Empty),
+            new Claim(ClaimTypes.Name, user.Email ?? string.Empty),
             new Claim("FullName", user.GetFullName()),
+            new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
         };
 
         claims.AddRange(roles.Select(r => new Claim(ClaimTypes.Role, r)));
@@ -40,7 +42,7 @@ public class JwtTokenService : IJwtTokenService
         var token = new JwtSecurityToken(
             issuer: _jwtOptions.Issuer,
             audience: _jwtOptions.Audience,
-            //expires: DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes),
+            expires: DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes),
             claims: claims,
             signingCredentials: credentials
         );

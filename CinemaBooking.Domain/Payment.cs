@@ -24,6 +24,7 @@ public class Payment
         if (Status == PaymentStatus.Completed)
         {
             Status = PaymentStatus.Refunded;
+            PaymentDate = DateTime.UtcNow;
             return true;
         }
         return false;
