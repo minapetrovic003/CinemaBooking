@@ -14,20 +14,23 @@ public class IdempotencyMiddleware
 
     public async Task Invoke(HttpContext httpContext)
     {
-        if (httpContext.Request.Method != HttpMethods.Post)
+        if (httpContext.Request.Method != HttpMethods.Post || ShouldSkip(httpContext.Request.Path))
         {
             await _next(httpContext);
             return;
         }
 
-        if (!httpContext.Request.Headers.TryGetValue("Idempotency-Key", out var key))
+        if (!httpContext.Request.Headers.TryGetValue("Idempotency-Key", out var key) ||
+           string.IsNullOrWhiteSpace(key.ToString()))
         {
-            httpContext.Response.StatusCode = 400;
+            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
             await httpContext.Response.WriteAsJsonAsync(new { ErrorMessage = "Idempotency-Key header is missing!" });
             return;
         }
 
-        if (_responses.TryGetValue(key!, out var cachedResponse))
+        var cacheKey = $"{httpContext.Request.Method}:{httpContext.Request.Path}:{key}";
+
+        if (_responses.TryGetValue(cacheKey, out var cachedResponse))
         {
             httpContext.Response.Headers["Idempotency-Cache"] = "HIT";
             httpContext.Response.StatusCode = cachedResponse.StatusCode;
@@ -36,27 +39,37 @@ public class IdempotencyMiddleware
             return;
         }
 
-        var memoryStream = new MemoryStream();
+        await using var memoryStream = new MemoryStream();
         var originalBody = httpContext.Response.Body;
         httpContext.Response.Body = memoryStream;
 
-        await _next(httpContext);
-
-        memoryStream.Seek(0, SeekOrigin.Begin);
-
-        if (httpContext.Response.StatusCode >= 200 && httpContext.Response.StatusCode < 300)
+        try
         {
-            var cached = new CachedResponse(
-                memoryStream.ToArray(),
-                httpContext.Response.ContentType ?? "application/json",
-                httpContext.Response.StatusCode);
 
-            _responses.TryAdd(key!, cached);
+            await _next(httpContext);
+
+            memoryStream.Seek(0, SeekOrigin.Begin);
+
+            if (httpContext.Response.StatusCode >= 200 && httpContext.Response.StatusCode < 300)
+            {
+                var cached = new CachedResponse(
+                    memoryStream.ToArray(),
+                    httpContext.Response.ContentType ?? "application/json",
+                    httpContext.Response.StatusCode);
+
+                _responses.TryAdd(cacheKey, cached);
+            }
+
+            await memoryStream.CopyToAsync(originalBody);
         }
-
-        await memoryStream.CopyToAsync(originalBody);
-        httpContext.Response.Body = originalBody;
+        finally
+        {
+            httpContext.Response.Body = originalBody;
+        }
     }
+
+    private static bool ShouldSkip(PathString path)
+        => path.StartsWithSegments("/auth");
 }
 
 public record CachedResponse(byte[] Body, string ContentType, int StatusCode);

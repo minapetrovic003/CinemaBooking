@@ -101,6 +101,7 @@ public class BookingService : IBookingService
             BookingSeats = seats.Select(s => new BookingSeat
             {
                 SeatId = s.Id,
+                Seat = s,
                 Price = showtime.Price + SeatTypeSurcharge.GetSurcharge(s.SeatType)
             }).ToList()
         };

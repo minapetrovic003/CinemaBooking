@@ -14,12 +14,18 @@ namespace CinemaBooking.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IJwtTokenService _tokenService;
     private readonly JwtOptions _jwtOptions;
 
-    public AuthController(UserManager<ApplicationUser> userManager, IJwtTokenService tokenService, IOptions<JwtOptions> jwtOptions)
+    public AuthController(
+        UserManager<ApplicationUser> userManager,
+        RoleManager<IdentityRole> roleManager,
+        IJwtTokenService tokenService,
+        IOptions<JwtOptions> jwtOptions)
     {
         _userManager = userManager;
+        _roleManager = roleManager;
         _tokenService = tokenService;
         _jwtOptions = jwtOptions.Value;
     }
@@ -32,12 +38,20 @@ public class AuthController : ControllerBase
         if (existing is not null)
             return Conflict(new { Message = "User with this email already exists." });
 
+        var allowedRoles = new[] { "Admin", "User" };
+        var role = allowedRoles.FirstOrDefault(r =>
+            string.Equals(r, request.Role, StringComparison.OrdinalIgnoreCase)) ?? "User";
+
+        if (!await _roleManager.RoleExistsAsync(role))
+            return StatusCode(500, new { Message = $"Role '{role}' is not configured in the database." });
+
         var user = new ApplicationUser
         {
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,
-            UserName = request.Email
+            UserName = request.Email,
+            EmailConfirmed = true
         };
 
         var result = await _userManager.CreateAsync(user, request.Password);
@@ -47,10 +61,13 @@ public class AuthController : ControllerBase
             return BadRequest(new { Errors = errors });
         }
 
-        // Dodeli rolu (podrazumevano "User", može biti "Admin")
-        var allowedRoles = new[] { "Admin", "User" };
-        var role = allowedRoles.Contains(request.Role) ? request.Role : "User";
-        await _userManager.AddToRoleAsync(user, role);
+        var addToRoleResult = await _userManager.AddToRoleAsync(user, role);
+        if (!addToRoleResult.Succeeded)
+        {
+            await _userManager.DeleteAsync(user);
+            var errors = addToRoleResult.Errors.Select(e => e.Description);
+            return BadRequest(new { Errors = errors });
+        }
 
         return Ok(new { Message = $"User registered successfully with role '{role}'." });
     }

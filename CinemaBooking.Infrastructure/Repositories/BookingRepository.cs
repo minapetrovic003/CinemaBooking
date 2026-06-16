@@ -57,6 +57,7 @@ public class BookingRepository : Repository<Booking>, IBookingRepository
                 .ThenInclude(s => s.Hall)
             .Include(b => b.BookingSeats)
                 .ThenInclude(bs => bs.Seat)
+            .Include(b => b.Payment)
             .FirstOrDefault(b => b.Id == id);
 
     public IEnumerable<long> GetBookedSeatIds(long showtimeId) =>
