@@ -3,6 +3,7 @@ using CinemaBooking.API.CQRS.Behaviors;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
 using CinemaBooking.API.Services.Auth;
+using CinemaBooking.API.Services.Notifications;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure;
 using CinemaBooking.Infrastructure.Identity;
@@ -44,6 +45,9 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Key))
 {
     throw new InvalidOperationException("JWT key is missing.");
 }
+
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 

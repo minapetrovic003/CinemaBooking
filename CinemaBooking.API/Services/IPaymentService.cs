@@ -4,7 +4,7 @@ namespace CinemaBooking.API.Services;
 
 public interface IPaymentService
 {
-    PaymentDto? GetById(long id);
-    (PaymentDto? dto, string? errorMessage, int statusCode) Create(CreatePaymentRequest request);
-    (bool success, string? errorMessage) Refund(long id);
+    Task<PaymentDto?> GetByIdAsync(long id);
+    Task<(PaymentDto? dto, string? errorMessage, int statusCode)> CreateAsync(CreatePaymentRequest request);
+    Task<(bool success, string? errorMessage)> RefundAsync(long id);
 }

@@ -1,5 +1,6 @@
 ﻿using CinemaBooking.API.CQRS.Bookings.Commands;
 using CinemaBooking.API.DTOs.Bookings;
+using CinemaBooking.API.Services.Notifications;
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;
@@ -13,11 +14,15 @@ public class CreateBookingHandler
 {
     private readonly IUnitOfWork _uow;
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly INotificationService _notificationService;
+    private readonly ILogger<CreateBookingHandler> _logger;
 
-    public CreateBookingHandler(IUnitOfWork uow, UserManager<ApplicationUser> userManager)
+    public CreateBookingHandler(IUnitOfWork uow, UserManager<ApplicationUser> userManager, INotificationService notificationService, ILogger<CreateBookingHandler> logger)
     {
         _uow = uow;
         _userManager = userManager;
+        _notificationService = notificationService;
+        _logger = logger;
     }
 
     public async Task<(BookingDto? Dto, string? ErrorMessage, int StatusCode)> Handle(
@@ -61,6 +66,8 @@ public class CreateBookingHandler
             ShowtimeId = showtime.Id,
             Status = BookingStatus.Confirmed,
             CreatedAt = DateTime.UtcNow,
+            // NAPOMENA: Seat navigation property se postavlja ovdje da bi email mogao
+            // čitati labele sjedišta bez extra DB poziva
             BookingSeats = seats.Select(s => new BookingSeat
             {
                 SeatId = s.Id,
@@ -69,6 +76,10 @@ public class CreateBookingHandler
         };
 
         booking.CalculateTotalPrice();
+
+        // Postavljamo navigation property da NotificationService može čitati detalje
+        booking.Showtime = showtime;
+
         _uow.Bookings.Add(booking);
         _uow.SaveChanges();
 
@@ -92,6 +103,18 @@ public class CreateBookingHandler
                 Price = showtime.Price + SeatTypeSurcharge.GetSurcharge(s.SeatType)
             }).ToList()
         };
+
+        // Slanje emaila: ako SMTP padne, NE obaramo booking
+        try
+        {
+            await _notificationService.SendBookingConfirmationAsync(booking, user, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex,
+                "Booking confirmation email nije poslan za booking #{BookingId}, korisnik {Email}",
+                booking.Id, user.Email);
+        }
 
         return (dto, null, 201);
     }
