@@ -1,11 +1,9 @@
 ﻿using CinemaBooking.Domain;
 using CinemaBooking.Infrastructure.Identity;
-using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using MimeKit.Text;
-using System.Net.Mail;
 
 namespace CinemaBooking.API.Services.Notifications;
 
@@ -29,6 +27,18 @@ public class NotificationService : INotificationService
         string htmlBody,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_smtp.Host))
+            throw new InvalidOperationException("SMTP Host is not configured.");
+
+        if (string.IsNullOrWhiteSpace(_smtp.UserName))
+            throw new InvalidOperationException("SMTP UserName is not configured.");
+
+        if (string.IsNullOrWhiteSpace(_smtp.Password))
+            throw new InvalidOperationException("SMTP Password is not configured. For Gmail use an App Password, not the normal account password.");
+
+        if (string.IsNullOrWhiteSpace(_smtp.FromEmail))
+            throw new InvalidOperationException("SMTP FromEmail is not configured.");
+
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(_smtp.FromName, _smtp.FromEmail));
         message.To.Add(new MailboxAddress(toName, toEmail));

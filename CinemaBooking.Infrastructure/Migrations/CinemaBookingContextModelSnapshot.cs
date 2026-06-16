@@ -54,7 +54,7 @@ namespace CinemaBooking.Infrastructure.Migrations
 
                     b.HasIndex("UserId");
 
-                    b.ToTable("Bookings");
+                    b.ToTable("Bookings", (string)null);
                 });
 
             modelBuilder.Entity("CinemaBooking.Domain.BookingSeat", b =>
@@ -81,7 +81,7 @@ namespace CinemaBooking.Infrastructure.Migrations
                     b.HasIndex("BookingId", "SeatId")
                         .IsUnique();
 
-                    b.ToTable("BookingSeats");
+                    b.ToTable("BookingSeats", (string)null);
                 });
 
             modelBuilder.Entity("CinemaBooking.Domain.Hall", b =>
@@ -105,7 +105,7 @@ namespace CinemaBooking.Infrastructure.Migrations
                     b.HasIndex("Name")
                         .IsUnique();
 
-                    b.ToTable("Halls");
+                    b.ToTable("Halls", (string)null);
                 });
 
             modelBuilder.Entity("CinemaBooking.Domain.Movie", b =>
@@ -139,7 +139,7 @@ namespace CinemaBooking.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("Movies");
+                    b.ToTable("Movies", (string)null);
                 });
 
             modelBuilder.Entity("CinemaBooking.Domain.Payment", b =>
@@ -172,7 +172,7 @@ namespace CinemaBooking.Infrastructure.Migrations
                     b.HasIndex("BookingId")
                         .IsUnique();
 
-                    b.ToTable("Payments");
+                    b.ToTable("Payments", (string)null);
                 });
 
             modelBuilder.Entity("CinemaBooking.Domain.Seat", b =>
@@ -202,7 +202,7 @@ namespace CinemaBooking.Infrastructure.Migrations
 
                     b.HasIndex("HallId");
 
-                    b.ToTable("Seats");
+                    b.ToTable("Seats", (string)null);
                 });
 
             modelBuilder.Entity("CinemaBooking.Domain.Showtime", b =>
@@ -234,7 +234,7 @@ namespace CinemaBooking.Infrastructure.Migrations
 
                     b.HasIndex("MovieId");
 
-                    b.ToTable("Showtimes");
+                    b.ToTable("Showtimes", (string)null);
                 });
 
             modelBuilder.Entity("CinemaBooking.Infrastructure.Identity.ApplicationUser", b =>
