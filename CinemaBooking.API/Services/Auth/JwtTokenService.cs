@@ -1,6 +1,7 @@
 ﻿using CinemaBooking.API.Autentification;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
@@ -13,10 +14,10 @@ public class JwtTokenService : IJwtTokenService
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly JwtOptions _jwtOptions;
 
-    public JwtTokenService(UserManager<ApplicationUser> userManager, JwtOptions jwtOptions)
+    public JwtTokenService(UserManager<ApplicationUser> userManager, IOptions<JwtOptions> jwtOptions)
     {
         _userManager = userManager;
-        _jwtOptions = jwtOptions;
+        _jwtOptions = jwtOptions.Value;
     }
 
     public async Task<string> CreateTokenAsync(ApplicationUser user)
