@@ -6,6 +6,7 @@ using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;
 using MediatR;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace CinemaBooking.API.CQRS.Bookings.Handlers;
 
@@ -17,7 +18,11 @@ public class CreateBookingHandler
     private readonly INotificationService _notificationService;
     private readonly ILogger<CreateBookingHandler> _logger;
 
-    public CreateBookingHandler(IUnitOfWork uow, UserManager<ApplicationUser> userManager, INotificationService notificationService, ILogger<CreateBookingHandler> logger)
+    public CreateBookingHandler(
+        IUnitOfWork uow,
+        UserManager<ApplicationUser> userManager,
+        INotificationService notificationService,
+        ILogger<CreateBookingHandler> logger)
     {
         _uow = uow;
         _userManager = userManager;
@@ -33,7 +38,10 @@ public class CreateBookingHandler
             return (null, $"User with email '{request.UserEmail}' not found.", 404);
 
         var showtime = _uow.Showtimes
-            .GetByMovieTitleHallAndStartTime(request.MovieTitle, request.HallName, request.ShowtimeStartTime);
+            .GetByMovieTitleHallAndStartTime(
+                request.MovieTitle,
+                request.HallName,
+                request.ShowtimeStartTime);
 
         if (showtime is null)
             return (null, "Showtime not found. Check movie title, hall name, and start time.", 404);
@@ -41,7 +49,10 @@ public class CreateBookingHandler
         if (showtime.StartTime <= DateTime.UtcNow)
             return (null, "Cannot book past showtimes.", 409);
 
-        var requestedLabels = request.Seats.Select(s => s.ToUpper()).ToList();
+        var requestedLabels = request.Seats
+            .Select(s => s.Trim().ToUpper())
+            .Distinct()
+            .ToList();
 
         var seats = showtime.Hall.Seats
             .Where(s => requestedLabels.Contains(s.GetSeatLabel().ToUpper()))
@@ -55,10 +66,17 @@ public class CreateBookingHandler
             return (null, $"Seats not found in this hall: {string.Join(", ", notFound)}", 400);
 
         var bookedSeatIds = _uow.Bookings.GetBookedSeatIds(showtime.Id).ToList();
-        var alreadyBooked = seats.Where(s => bookedSeatIds.Contains(s.Id)).ToList();
+
+        var alreadyBooked = seats
+            .Where(s => bookedSeatIds.Contains(s.Id))
+            .ToList();
 
         if (alreadyBooked.Any())
-            return (null, $"Seats already booked: {string.Join(", ", alreadyBooked.Select(s => s.GetSeatLabel()))}", 409);
+        {
+            return (null,
+                $"Seats already booked: {string.Join(", ", alreadyBooked.Select(s => s.GetSeatLabel()))}",
+                409);
+        }
 
         var booking = new Booking
         {
@@ -66,8 +84,6 @@ public class CreateBookingHandler
             ShowtimeId = showtime.Id,
             Status = BookingStatus.Confirmed,
             CreatedAt = DateTime.UtcNow,
-            // NAPOMENA: Seat navigation property se postavlja ovdje da bi email mogao
-            // čitati labele sjedišta bez extra DB poziva
             BookingSeats = seats.Select(s => new BookingSeat
             {
                 SeatId = s.Id,
@@ -76,12 +92,37 @@ public class CreateBookingHandler
         };
 
         booking.CalculateTotalPrice();
-
-        // Postavljamo navigation property da NotificationService može čitati detalje
         booking.Showtime = showtime;
 
         _uow.Bookings.Add(booking);
-        _uow.SaveChanges();
+
+        try
+        {
+            _uow.SaveChanges();
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            _logger.LogWarning(ex,
+                "Concurrency conflict while creating booking for showtime {ShowtimeId}.",
+                showtime.Id);
+
+            return (null,
+                "The seats you selected were just taken by another user. Please refresh and try again.",
+                409);
+        }
+
+        try
+        {
+            _uow.SeatLocks.ReleaseLocksForUser(showtime.Id, user.Id);
+            _uow.SaveChanges();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Could not release seat locks for user {UserId} after booking {BookingId}.",
+                user.Id,
+                booking.Id);
+        }
 
         var dto = new BookingDto
         {
@@ -104,16 +145,19 @@ public class CreateBookingHandler
             }).ToList()
         };
 
-        // Slanje emaila: ako SMTP padne, NE obaramo booking
         try
         {
-            await _notificationService.SendBookingConfirmationAsync(booking, user, cancellationToken);
+            await _notificationService.SendBookingConfirmationAsync(
+                booking,
+                user,
+                cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Booking confirmation email nije poslan za booking #{BookingId}, korisnik {Email}",
-                booking.Id, user.Email);
+                "PDF/email failed for booking #{BookingId}, user {Email}.",
+                booking.Id,
+                user.Email);
         }
 
         return (dto, null, 201);

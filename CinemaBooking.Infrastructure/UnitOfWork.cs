@@ -16,6 +16,8 @@ public class UnitOfWork : IUnitOfWork
     private IRepository<Seat>? _seats;
     private IRepository<BookingSeat>? _bookingSeats;
 
+    private ISeatLockRepository? _seatLocks;
+
     public UnitOfWork(CinemaBookingContext context)
     {
         _context = context;
@@ -41,6 +43,9 @@ public class UnitOfWork : IUnitOfWork
 
     public IRepository<BookingSeat> BookingSeats =>
         _bookingSeats ??= new Repository<BookingSeat>(_context);
+
+    public ISeatLockRepository SeatLocks =>
+       _seatLocks ??= new SeatLockRepository(_context);
 
     public int SaveChanges() => _context.SaveChanges();
     public Task<int> SaveChangesAsync() => _context.SaveChangesAsync();

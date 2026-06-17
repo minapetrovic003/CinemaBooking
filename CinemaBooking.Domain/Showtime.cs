@@ -14,6 +14,15 @@ public class Showtime
     public Hall Hall { get; set; } = null!;
     public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
 
+    // OPTIMISTIC CONCURRENCY 
+    // SQL Server automatski ažurira ovaj bajt niz pri svakom UPDATE-u.
+    // EF Core koristi ovu vrednost u WHERE klauzuli: ako se vrednost promenila
+    // između čitanja i upisa, SaveChanges() baca DbUpdateConcurrencyException.
+    // Na taj način two simultaneous bookings of the same seat are guaranteed
+    // to result in exactly one success and one concurrency conflict.
+    [System.ComponentModel.DataAnnotations.Timestamp]
+    public byte[] RowVersion { get; set; } = Array.Empty<byte>();
+   
     public DateTime CalculateEndTime(int durationMinutes)
         => StartTime.AddMinutes(durationMinutes);
 

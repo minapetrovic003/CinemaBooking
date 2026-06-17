@@ -10,6 +10,9 @@ public interface IUnitOfWork : IDisposable
     IRepository<Seat> Seats { get; }
     IRepository<BookingSeat> BookingSeats { get; }
 
+    //SeatLook
+    ISeatLockRepository SeatLocks { get; }
+
     int SaveChanges();
     Task<int> SaveChangesAsync();
 }

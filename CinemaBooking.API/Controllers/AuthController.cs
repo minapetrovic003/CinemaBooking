@@ -50,7 +50,14 @@ public class AuthController : ControllerBase
         // Dodeli rolu (podrazumevano "User", može biti "Admin")
         var allowedRoles = new[] { "Admin", "User" };
         var role = allowedRoles.Contains(request.Role) ? request.Role : "User";
-        await _userManager.AddToRoleAsync(user, role);
+        // C#
+var app = builder.Build();
+
+// Ensure identity roles and admin user are seeded before processing requests
+app.SeedIdentityAsync().GetAwaiter().GetResult();
+
+app.UseGlobalExceptionHandling();
+...await _userManager.AddToRoleAsync(user, role);
 
         return Ok(new { Message = $"User registered successfully with role '{role}'." });
     }
