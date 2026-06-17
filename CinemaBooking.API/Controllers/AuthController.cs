@@ -14,12 +14,18 @@ namespace CinemaBooking.API.Controllers;
 public class AuthController : ControllerBase
 {
     private readonly UserManager<ApplicationUser> _userManager;
+    private readonly RoleManager<IdentityRole> _roleManager;
     private readonly IJwtTokenService _tokenService;
     private readonly JwtOptions _jwtOptions;
 
-    public AuthController(UserManager<ApplicationUser> userManager, IJwtTokenService tokenService, IOptions<JwtOptions> jwtOptions)
+    public AuthController(
+        UserManager<ApplicationUser> userManager,
+        RoleManager<IdentityRole> roleManager,
+        IJwtTokenService tokenService,
+        IOptions<JwtOptions> jwtOptions)
     {
         _userManager = userManager;
+        _roleManager = roleManager;
         _tokenService = tokenService;
         _jwtOptions = jwtOptions.Value;
     }
@@ -41,23 +47,34 @@ public class AuthController : ControllerBase
         };
 
         var result = await _userManager.CreateAsync(user, request.Password);
+
         if (!result.Succeeded)
         {
             var errors = result.Errors.Select(e => e.Description);
             return BadRequest(new { Errors = errors });
         }
 
-        // Dodeli rolu (podrazumevano "User", može biti "Admin")
         var allowedRoles = new[] { "Admin", "User" };
         var role = allowedRoles.Contains(request.Role) ? request.Role : "User";
-        // C#
-var app = builder.Build();
 
-// Ensure identity roles and admin user are seeded before processing requests
-app.SeedIdentityAsync().GetAwaiter().GetResult();
+        if (!await _roleManager.RoleExistsAsync(role))
+        {
+            var roleResult = await _roleManager.CreateAsync(new IdentityRole(role));
 
-app.UseGlobalExceptionHandling();
-...await _userManager.AddToRoleAsync(user, role);
+            if (!roleResult.Succeeded)
+            {
+                var errors = roleResult.Errors.Select(e => e.Description);
+                return BadRequest(new { Errors = errors });
+            }
+        }
+
+        var addRoleResult = await _userManager.AddToRoleAsync(user, role);
+
+        if (!addRoleResult.Succeeded)
+        {
+            var errors = addRoleResult.Errors.Select(e => e.Description);
+            return BadRequest(new { Errors = errors });
+        }
 
         return Ok(new { Message = $"User registered successfully with role '{role}'." });
     }
@@ -67,13 +84,19 @@ app.UseGlobalExceptionHandling();
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
+
         if (user is null)
             return Unauthorized(new { Message = "Invalid email or password." });
 
-        if (!await _userManager.CheckPasswordAsync(user, request.Password))
+        var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password);
+
+        if (!isPasswordValid)
             return Unauthorized(new { Message = "Invalid email or password." });
 
         var token = await _tokenService.CreateTokenAsync(user);
-        return Ok(new LoginResult(token, DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes)));
+
+        return Ok(new LoginResult(
+            token,
+            DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes)));
     }
 }
