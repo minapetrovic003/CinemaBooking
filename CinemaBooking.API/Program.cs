@@ -18,6 +18,7 @@ using System.Text;
 using CinemaBooking.Application.CQRS.Bookings.Handlers;
 using CinemaBooking.Application.Notifications;
 using CinemaBooking.Application.Services;
+using CinemaBooking.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -105,10 +106,7 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var app = builder.Build();
 
-using (var scope = app.Services.CreateScope())
-{
-
-}
+await app.SeedIdentityAsync();
 
 app.UseGlobalExceptionHandling();
 
