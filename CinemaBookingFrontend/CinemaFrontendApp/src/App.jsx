@@ -1256,46 +1256,54 @@ function AdminPage({ token, toast }) {
   const [bookings, setBookings] = useState([]);
   const [movies, setMovies] = useState([]);
   const [showtimes, setShowtimes] = useState([]);
+  const [payments, setPayments] = useState([]);
+  const [halls, setHalls] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAddMovie, setShowAddMovie] = useState(false);
   const [showAddShowtime, setShowAddShowtime] = useState(false);
+  const [showAddHall, setShowAddHall] = useState(false);
   const [newMovie, setNewMovie] = useState({ title: "", description: "", genre: "Drama", durationMinutes: 120, rating: 7.5 });
   const [newShowtime, setNewShowtime] = useState({ movieTitle: "", hallName: "", startTime: "", price: 10 });
+  const [newHall, setNewHall] = useState({ name: "", rows: 8, seatsPerRow: 10 });
 
-  useEffect(() => {
+  const loadData = () => {
     setLoading(true);
     const h = { Authorization: `Bearer ${token}` };
     Promise.all([
-      fetch(`${API}/bookings?pageSize=100`, { headers: h }).then(r => r.json()).catch(() => ({ items: demoBookings() })),
-      fetch(`${API}/movies?pageSize=100`).then(r => r.json()).catch(() => ({ items: demoMovies() })),
-      fetch(`${API}/showtimes`).then(r => r.json()).catch(() => demoShowtimes()),
-    ]).then(([b, m, s]) => {
+      fetch(`${API}/bookings?pageSize=100`, { headers: h }).then(r => r.json()).catch(() => ({ items: [] })),
+      fetch(`${API}/movies?pageSize=100`).then(r => r.json()).catch(() => ({ items: [] })),
+      fetch(`${API}/showtimes`).then(r => r.json()).catch(() => []),
+      fetch(`${API}/payments`, { headers: h }).then(r => r.json()).catch(() => []),
+      fetch(`${API}/halls`, { headers: h }).then(r => r.json()).catch(() => []),
+    ]).then(([b, m, s, p, hl]) => {
       setBookings(b.items || b);
       setMovies(m.items || m);
       setShowtimes(Array.isArray(s) ? s : s.items || []);
+      setPayments(Array.isArray(p) ? p : []);
+      setHalls(Array.isArray(hl) ? hl : []);
       setLoading(false);
     });
-  }, []);
+  };
+
+  useEffect(() => { loadData(); }, []);
 
   const addMovie = async (e) => {
-  e.preventDefault();
-  try {
-    const r = await authFetch(`${API}/movies`, token, {
-      method: "POST",
-      body: JSON.stringify({ ...newMovie, durationMinutes: Number(newMovie.durationMinutes), rating: Number(newMovie.rating) })
-    });
-    if (r.ok || r.status === 201) {
-      toast("Movie added!", "success"); setShowAddMovie(false);
-      const m = await fetch(`${API}/movies?pageSize=100`).then(r2 => r2.json()).catch(() => ({ items: movies }));
-      setMovies(m.items || m);
-    } else {
-      // ✅ FIX: safeJson
-      const err = await safeJson(r);
-      if (r.status === 401) toast("Session expired — please log in again.", "error");
-      else toast(err.message || JSON.stringify(err), "error");
-    }
-  } catch { toast("Network error", "error"); }
-};
+    e.preventDefault();
+    try {
+      const r = await authFetch(`${API}/movies`, token, {
+        method: "POST",
+        body: JSON.stringify({ ...newMovie, durationMinutes: Number(newMovie.durationMinutes), rating: Number(newMovie.rating) })
+      });
+      if (r.ok || r.status === 201) {
+        toast("Movie added!", "success"); setShowAddMovie(false);
+        const m = await fetch(`${API}/movies?pageSize=100`).then(r2 => r2.json()).catch(() => ({ items: movies }));
+        setMovies(m.items || m);
+      } else {
+        const err = await safeJson(r);
+        toast(r.status === 401 ? "Session expired" : err.message || JSON.stringify(err), "error");
+      }
+    } catch { toast("Network error", "error"); }
+  };
 
   const deleteMovie = async (id) => {
     if (!confirm("Delete this movie?")) return;
@@ -1311,65 +1319,123 @@ function AdminPage({ token, toast }) {
     else toast("Could not delete", "error");
   };
 
-  // Unutar AdminPage komponente — zamijeni postojeći addShowtime
-const addShowtime = async (e) => {
-  e.preventDefault();
-  try {
-    const startTimeUtc = newShowtime.startTime
-      ? new Date(newShowtime.startTime).toISOString()
-      : null;
+  const addShowtime = async (e) => {
+    e.preventDefault();
+    try {
+      const startTimeUtc = newShowtime.startTime ? new Date(newShowtime.startTime).toISOString() : null;
+      if (!startTimeUtc) { toast("Please enter a valid start time", "error"); return; }
+      const r = await authFetch(`${API}/showtimes`, token, {
+        method: "POST",
+        body: JSON.stringify({ ...newShowtime, startTime: startTimeUtc, price: Number(newShowtime.price) })
+      });
+      if (r.ok || r.status === 201) {
+        toast("Showtime added!", "success");
+        setShowAddShowtime(false);
+        setNewShowtime({ movieTitle: "", hallName: "", startTime: "", price: 10 });
+        const s = await fetch(`${API}/showtimes`).then(r2 => r2.json()).catch(() => showtimes);
+        setShowtimes(Array.isArray(s) ? s : s.items || []);
+      } else {
+        const err = await safeJson(r);
+        toast(r.status === 401 ? "Session expired" : err.message || "Error creating showtime", "error");
+      }
+    } catch { toast("Connection error", "error"); }
+  };
 
-    if (!startTimeUtc) {
-      toast("Please enter a valid start time", "error");
-      return;
-    }
+  const addHall = async (e) => {
+    e.preventDefault();
+    try {
+      const rows = Number(newHall.rows);
+      const seatsPerRow = Number(newHall.seatsPerRow);
+      const r = await authFetch(`${API}/halls`, token, {
+        method: "POST",
+        body: JSON.stringify({
+          name: newHall.name,
+          capacity: rows * seatsPerRow,
+          rows,
+          seatsPerRow
+        })
+      });
+      if (r.ok || r.status === 201) {
+        toast("Hall created!", "success");
+        setShowAddHall(false);
+        setNewHall({ name: "", rows: 8, seatsPerRow: 10 });
+        const hl = await authFetch(`${API}/halls`, token).then(r2 => r2.json()).catch(() => halls);
+        setHalls(Array.isArray(hl) ? hl : []);
+      } else {
+        const err = await safeJson(r);
+        toast(r.status === 401 ? "Session expired" : err.message || "Error creating hall", "error");
+      }
+    } catch { toast("Connection error", "error"); }
+  };
 
-    const r = await authFetch(`${API}/showtimes`, token, {
-      method: "POST",
-      body: JSON.stringify({
-        ...newShowtime,
-        startTime: startTimeUtc,
-        price: Number(newShowtime.price)
-      })
-    });
-    if (r.ok || r.status === 201) {
-      toast("Showtime added!", "success");
-      setShowAddShowtime(false);
-      setNewShowtime({ movieTitle: "", hallName: "", startTime: "", price: 10 });
-      const s = await fetch(`${API}/showtimes`).then(r2 => r2.json()).catch(() => showtimes);
-      setShowtimes(Array.isArray(s) ? s : s.items || []);
+  const deleteHall = async (id) => {
+    if (!confirm("Delete this hall? This will also remove all its seats.")) return;
+    const r = await authFetch(`${API}/halls/${id}`, token, { method: "DELETE" }).catch(() => null);
+    if (r?.ok || r?.status === 204) { setHalls(h => h.filter(x => x.id !== id)); toast("Hall deleted", "info"); }
+    else toast("Could not delete hall", "error");
+  };
+
+  const refundPayment = async (id) => {
+    if (!confirm("Process refund for this payment?")) return;
+    const r = await authFetch(`${API}/payments/${id}/refund`, token, { method: "PATCH" }).catch(() => null);
+    if (r?.ok || r?.status === 204) {
+      toast("Refund processed", "success");
+      setPayments(p => p.map(x => x.id === id ? { ...x, status: "Refunded" } : x));
     } else {
-      const err = await safeJson(r);
-      if (r.status === 401) toast("Session expired — please log in again.", "error");
-      else toast(err.message || "Error creating showtime", "error");
+      const err = await safeJson(r).catch(() => ({}));
+      toast(err?.message || "Could not process refund", "error");
     }
-  } catch {
-    toast("Connection error", "error");
-  }
-};
+  };
+
+  const processPayment = async (booking) => {
+    const method = prompt("Payment method (CreditCard / DebitCard / PayPal / Voucher):", "CreditCard");
+    if (!method) return;
+    try {
+      const r = await authFetch(`${API}/payments`, token, {
+        method: "POST",
+        body: JSON.stringify({
+          userEmail: booking.userEmail,
+          movieTitle: booking.movieTitle,
+          hallName: booking.hallName,
+          showtimeStartTime: booking.showtimeStart,
+          method
+        })
+      });
+      if (r.ok || r.status === 201) {
+        toast("Payment processed! Confirmation email sent.", "success");
+        loadData();
+      } else {
+        const err = await safeJson(r);
+        toast(err.message || "Payment failed", "error");
+      }
+    } catch { toast("Connection error", "error"); }
+  };
 
   const stats = {
     totalBookings: bookings.length,
     confirmed: bookings.filter(b => b.status === "Confirmed").length,
     checkedIn: bookings.filter(b => b.status === "CheckedIn").length,
-    revenue: bookings.filter(b => b.status === "Confirmed" || b.status === "CheckedIn").reduce((s, b) => s + Number(b.totalPrice || 0), 0),
+    revenue: payments.filter(p => p.status === "Paid").reduce((s, p) => s + Number(p.amount || 0), 0),
     movies: movies.length,
+    halls: halls.length,
   };
 
   return (
     <div className="section">
       <div className="section-header"><h1 className="section-title">Admin Panel</h1></div>
       <div className="stats-grid">
-        <div className="stat-card"><div className="stat-label">Total bookings</div><div className="stat-val">{stats.totalBookings}</div></div>
+        <div className="stat-card"><div className="stat-label">Total Bookings</div><div className="stat-val">{stats.totalBookings}</div></div>
         <div className="stat-card"><div className="stat-label">Confirmed</div><div className="stat-val stat-accent">{stats.confirmed}</div></div>
         <div className="stat-card"><div className="stat-label">Checked In</div><div className="stat-val" style={{ color: "#2980b9" }}>{stats.checkedIn}</div></div>
-        <div className="stat-card"><div className="stat-label">Revenue</div><div className="stat-val">{formatEur(stats.revenue)}</div></div>
-        <div className="stat-card"><div className="stat-label">Films in catalog</div><div className="stat-val">{stats.movies}</div></div>
+        <div className="stat-card"><div className="stat-label">Revenue (paid)</div><div className="stat-val">€{stats.revenue.toFixed(2)}</div></div>
+        <div className="stat-card"><div className="stat-label">Films</div><div className="stat-val">{stats.movies}</div></div>
+        <div className="stat-card"><div className="stat-label">Halls</div><div className="stat-val">{stats.halls}</div></div>
       </div>
+
       <div className="admin-tabs">
-        {["bookings", "movies", "showtimes"].map(t => (
+        {["bookings", "movies", "showtimes", "halls", "payments"].map(t => (
           <button key={t} className={`admin-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t === "bookings" ? "Bookings" : t === "movies" ? "Films" : "Showtimes"}
+            {t === "bookings" ? "Bookings" : t === "movies" ? "Films" : t === "showtimes" ? "Showtimes" : t === "halls" ? "Halls" : "Payments"}
           </button>
         ))}
       </div>
@@ -1379,7 +1445,7 @@ const addShowtime = async (e) => {
           {tab === "bookings" && (
             <div style={{ overflowX: "auto" }}>
               <table className="data-table">
-                <thead><tr><th>Film</th><th>User</th><th>Hall</th><th>Date</th><th>Seats</th><th>Total</th><th>Status</th></tr></thead>
+                <thead><tr><th>Film</th><th>User</th><th>Hall</th><th>Date</th><th>Seats</th><th>Total</th><th>Status</th><th></th></tr></thead>
                 <tbody>
                   {bookings.map(b => (
                     <tr key={b.id}>
@@ -1393,6 +1459,17 @@ const addShowtime = async (e) => {
                       <td>{b.seats?.map(s => s.seatLabel).join(", ")}</td>
                       <td style={{ color: "var(--rose)", fontWeight: 600 }}>{formatEur(b.totalPrice)}</td>
                       <td><span className={`status-badge status-${(b.status || "confirmed").toLowerCase()}`}>{b.status || "Confirmed"}</span></td>
+                      <td>
+                        {b.status === "Confirmed" && (
+                          <button
+                            className="btn-primary"
+                            style={{ fontSize: "0.75rem", padding: "0.3rem 0.7rem" }}
+                            onClick={() => processPayment(b)}
+                          >
+                            💳 Pay
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1456,7 +1533,12 @@ const addShowtime = async (e) => {
                           {movies.map(m => <option key={m.id} value={m.title}>{m.title}</option>)}
                         </select>
                       </div>
-                      <div className="form-group"><label className="form-label">Hall Name</label><input className="form-input" value={newShowtime.hallName} onChange={e => setNewShowtime({ ...newShowtime, hallName: e.target.value })} required /></div>
+                      <div className="form-group"><label className="form-label">Hall</label>
+                        <select className="form-input" value={newShowtime.hallName} onChange={e => setNewShowtime({ ...newShowtime, hallName: e.target.value })} required>
+                          <option value="">Select hall</option>
+                          {halls.map(h => <option key={h.id} value={h.name}>{h.name} ({h.capacity} seats)</option>)}
+                        </select>
+                      </div>
                     </div>
                     <div className="form-row">
                       <div className="form-group"><label className="form-label">Start Time (Belgrade)</label><input type="datetime-local" className="form-input" value={newShowtime.startTime} onChange={e => setNewShowtime({ ...newShowtime, startTime: e.target.value })} required /></div>
@@ -1485,6 +1567,95 @@ const addShowtime = async (e) => {
                 </tbody>
               </table>
             </>
+          )}
+
+          {tab === "halls" && (
+            <>
+              <button className="btn-primary" style={{ marginBottom: "1.5rem" }} onClick={() => setShowAddHall(!showAddHall)}>+ Add Hall</button>
+              {showAddHall && (
+                <div className="add-panel">
+                  <div className="add-panel-title">New Hall</div>
+                  <form onSubmit={addHall}>
+                    <div className="form-group">
+                      <label className="form-label">Hall Name</label>
+                      <input className="form-input" value={newHall.name} onChange={e => setNewHall({ ...newHall, name: e.target.value })} required placeholder="e.g. Hall 3" />
+                    </div>
+                    <div className="form-row">
+                      <div className="form-group">
+                        <label className="form-label">Rows</label>
+                        <input type="number" min="1" max="30" className="form-input" value={newHall.rows} onChange={e => setNewHall({ ...newHall, rows: e.target.value })} required />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">Seats per Row</label>
+                        <input type="number" min="1" max="30" className="form-input" value={newHall.seatsPerRow} onChange={e => setNewHall({ ...newHall, seatsPerRow: e.target.value })} required />
+                      </div>
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
+                      Total capacity: <strong style={{ color: "var(--rose)" }}>{Number(newHall.rows) * Number(newHall.seatsPerRow)} seats</strong>
+                    </div>
+                    <button type="submit" className="btn-primary">Create Hall</button>
+                  </form>
+                </div>
+              )}
+              <table className="data-table">
+                <thead><tr><th>Name</th><th>Capacity</th><th>Seats generated</th><th></th></tr></thead>
+                <tbody>
+                  {halls.length === 0 ? (
+                    <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem" }}>No halls yet</td></tr>
+                  ) : halls.map(h => (
+                    <tr key={h.id}>
+                      <td style={{ color: "var(--cream)", fontWeight: 500 }}>🏛 {h.name}</td>
+                      <td>{h.capacity}</td>
+                      <td>{h.seatCount}</td>
+                      <td><button className="btn-cancel" onClick={() => deleteHall(h.id)}>Delete</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </>
+          )}
+
+          {tab === "payments" && (
+            <div style={{ overflowX: "auto" }}>
+              {payments.length === 0 ? (
+                <div className="empty-state">
+                  <div className="empty-state-icon">💳</div>
+                  <p>No payments yet. Use the 💳 Pay button in Bookings tab to process a payment.</p>
+                </div>
+              ) : (
+                <table className="data-table">
+                  <thead><tr><th>ID</th><th>Film</th><th>User</th><th>Amount</th><th>Method</th><th>Date</th><th>Status</th><th></th></tr></thead>
+                  <tbody>
+                    {payments.map(p => (
+                      <tr key={p.id}>
+                        <td style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>#{p.id}</td>
+                        <td style={{ color: "var(--cream)", fontWeight: 500 }}>{p.movieTitle}</td>
+                        <td>
+                          <div>{p.userFullName}</div>
+                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{p.userEmail}</div>
+                        </td>
+                        <td style={{ color: "var(--rose)", fontWeight: 600 }}>{formatEur(p.amount)}</td>
+                        <td>{p.method}</td>
+                        <td style={{ fontSize: "0.82rem" }}>
+                          {fmtDate(p.paymentDate, { day: "numeric", month: "short" })}<br />
+                          <span style={{ color: "var(--text-muted)" }}>{fmtTime(p.paymentDate)}</span>
+                        </td>
+                        <td>
+                          <span className={`status-badge ${p.status === "Paid" ? "status-confirmed" : p.status === "Refunded" ? "status-checkedin" : "status-pending"}`}>
+                            {p.status}
+                          </span>
+                        </td>
+                        <td>
+                          {p.status === "Paid" && (
+                            <button className="btn-cancel" onClick={() => refundPayment(p.id)}>Refund</button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           )}
         </>
       )}

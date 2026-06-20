@@ -3,7 +3,7 @@ using CinemaBooking.Application.CQRS.Behaviors;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
 using CinemaBooking.API.Services.Auth;
-using CinemaBooking.Application.Services.Notifications;
+using CinemaBooking.Application.Notifications;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure;
 using CinemaBooking.Infrastructure.Identity;
@@ -16,7 +16,6 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using System.Text;
 using CinemaBooking.Application.CQRS.Bookings.Handlers;
-using CinemaBooking.Application.Notifications;
 using CinemaBooking.Application.Services;
 using CinemaBooking.API.Extensions;
 using CinemaBooking.Application.CQRS.Bookings.Validators;
@@ -64,6 +63,7 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Key))
 
 builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IPdfTicketService, PdfTicketService>();
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 

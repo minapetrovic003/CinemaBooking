@@ -1,13 +1,13 @@
-﻿using CinemaBooking.Application.Services.Notifications;
+﻿using CinemaBooking.Application.Notifications;
 using CinemaBooking.Domain;
 using CinemaBooking.Infrastructure.Identity;
+using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using MimeKit;
 using MimeKit.Text;
 
-// NAPOMENA: namespace je ispravljen — bio je CinemaBooking.API.Services.Notifications
 namespace CinemaBooking.Application.Notifications;
 
 public class NotificationService : INotificationService
@@ -17,7 +17,9 @@ public class NotificationService : INotificationService
 
     private static readonly TimeZoneInfo BelgradeZone =
         TimeZoneInfo.FindSystemTimeZoneById(
-            OperatingSystem.IsWindows() ? "Central European Standard Time" : "Europe/Belgrade");
+            OperatingSystem.IsWindows()
+                ? "Central European Standard Time"
+                : "Europe/Belgrade");
 
     public NotificationService(
         IOptions<SmtpSettings> smtpOptions,
@@ -27,68 +29,83 @@ public class NotificationService : INotificationService
         _logger = logger;
     }
 
-    // Konvertuje UTC DateTime u Belgrade prikaz
     private static string ToBelgrade(DateTime utcTime)
     {
         var local = TimeZoneInfo.ConvertTimeFromUtc(utcTime, BelgradeZone);
         return local.ToString("dd.MM.yyyy HH:mm");
     }
 
-    // Generiše QR kod URL koji vodi na stranicu za verifikaciju rezervacije
-    private string BuildQrImageUrl(long bookingId)
-    {
-        var verifyUrl = $"{_smtp.FrontendBaseUrl}/#verify/{bookingId}";
-        var encoded = Uri.EscapeDataString(verifyUrl);
-        return $"https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl={encoded}&choe=UTF-8";
-    }
-
+    // -----------------------------------------------------------------------
+    // Osnovna metoda — opcionalni PDF prilog
+    // -----------------------------------------------------------------------
     public async Task SendEmailAsync(
         string toEmail,
         string toName,
         string subject,
         string htmlBody,
+        byte[]? attachmentBytes = null,
+        string? attachmentFileName = null,
         CancellationToken cancellationToken = default)
     {
+        if (string.IsNullOrWhiteSpace(_smtp.Host))
+            throw new InvalidOperationException("SMTP Host is not configured.");
+        if (string.IsNullOrWhiteSpace(_smtp.UserName))
+            throw new InvalidOperationException("SMTP UserName is not configured.");
+        if (string.IsNullOrWhiteSpace(_smtp.Password))
+            throw new InvalidOperationException("SMTP Password is not configured.");
+        if (string.IsNullOrWhiteSpace(_smtp.FromEmail))
+            throw new InvalidOperationException("SMTP FromEmail is not configured.");
+
         var message = new MimeMessage();
         message.From.Add(new MailboxAddress(_smtp.FromName, _smtp.FromEmail));
         message.To.Add(new MailboxAddress(toName, toEmail));
         message.Subject = subject;
-        message.Body = new TextPart(TextFormat.Html) { Text = htmlBody };
 
-        using var client = new MailKit.Net.Smtp.SmtpClient();
+        var bodyBuilder = new BodyBuilder { HtmlBody = htmlBody };
 
+        if (attachmentBytes is { Length: > 0 } && !string.IsNullOrWhiteSpace(attachmentFileName))
+        {
+            bodyBuilder.Attachments.Add(
+                attachmentFileName,
+                attachmentBytes,
+                new ContentType("application", "pdf"));
+        }
+
+        message.Body = bodyBuilder.ToMessageBody();
+
+        using var client = new SmtpClient();
         await client.ConnectAsync(
-            _smtp.Host,
-            _smtp.Port,
+            _smtp.Host, _smtp.Port,
             _smtp.UseSsl ? SecureSocketOptions.StartTls : SecureSocketOptions.None,
             cancellationToken);
-
         await client.AuthenticateAsync(_smtp.UserName, _smtp.Password, cancellationToken);
         await client.SendAsync(message, cancellationToken);
         await client.DisconnectAsync(true, cancellationToken);
 
         _logger.LogInformation(
-            "Email sent | Subject: '{Subject}' | To: {Email}",
-            subject, toEmail);
+            "Email sent | Subject: '{Subject}' | To: {Email} | Attachment: {HasAttachment}",
+            subject, toEmail, attachmentBytes is { Length: > 0 });
     }
 
+    // -----------------------------------------------------------------------
+    // Potvrda rezervacije — email + PDF karta
+    // -----------------------------------------------------------------------
     public async Task SendBookingConfirmationAsync(
         Booking booking,
         ApplicationUser user,
+        byte[] pdfTicket,
         CancellationToken cancellationToken = default)
     {
-        var seatRows = booking.BookingSeats
-            .Select(bs =>
-                $"<tr><td style=\"padding:8px;border:1px solid #ddd\">{bs.GetSeatLabel()}</td>" +
-                $"<td style=\"padding:8px;border:1px solid #ddd\">{bs.Seat?.SeatType}</td>" +
-                $"<td style=\"padding:8px;border:1px solid #ddd;text-align:right\">&euro;{bs.Price:F2}</td></tr>")
-            .ToList();
-
         var showtimeLocal = booking.Showtime?.StartTime is not null
             ? ToBelgrade(booking.Showtime.StartTime)
             : "N/A";
 
-        var qrImageUrl = BuildQrImageUrl(booking.Id);
+        var seatRows = booking.BookingSeats
+            .Select(bs =>
+                $"<tr><td style=\"padding:8px;border:1px solid #ddd\">{bs.GetSeatLabel()}</td>" +
+                $"<td style=\"padding:8px;border:1px solid #ddd\">{bs.Seat?.SeatType}</td>" +
+                $"<td style=\"padding:8px;border:1px solid #ddd;text-align:right\">€{bs.Price:F2}</td></tr>")
+            .ToList();
 
         var html = $"""
             <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#222">
@@ -99,7 +116,7 @@ public class NotificationService : INotificationService
               <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
                 <h2 style="color:#1a0e0e;margin-top:0">&#x2705; Your booking is confirmed!</h2>
                 <p>Dear <strong>{user.GetFullName()}</strong>,</p>
-                <p>Thank you for your booking. Below are your details:</p>
+                <p>Thank you for your booking. Your ticket is attached as a PDF — please show it at the cinema entrance.</p>
 
                 <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
                   <tr style="background:#f7f0ed">
@@ -115,7 +132,7 @@ public class NotificationService : INotificationService
                     <td style="padding:10px;border:1px solid #ddd">{showtimeLocal} (Belgrade time)</td>
                   </tr>
                   <tr>
-                    <td style="padding:10px;border:1px solid #ddd"><b>Booking Status</b></td>
+                    <td style="padding:10px;border:1px solid #ddd"><b>Status</b></td>
                     <td style="padding:10px;border:1px solid #ddd"><strong style="color:#27ae60">{booking.Status}</strong></td>
                   </tr>
                 </table>
@@ -130,16 +147,9 @@ public class NotificationService : INotificationService
                   {string.Join("\n", seatRows)}
                   <tr style="background:#f7f0ed;font-weight:bold">
                     <td colspan="2" style="padding:10px;border:1px solid #ddd">Total</td>
-                    <td style="padding:10px;border:1px solid #ddd;text-align:right">&euro;{booking.TotalPrice:F2}</td>
+                    <td style="padding:10px;border:1px solid #ddd;text-align:right">€{booking.TotalPrice:F2}</td>
                   </tr>
                 </table>
-
-                <div style="text-align:center;margin:28px 0">
-                  <p style="color:#555;margin-bottom:12px"><b>Show this QR code at the cinema entrance</b></p>
-                  <img src="{qrImageUrl}" alt="Booking QR Code" width="220" height="220"
-                       style="border:4px solid #CC8B86;border-radius:8px;padding:8px" />
-                  <p style="color:#888;font-size:0.8em;margin-top:8px">Booking #{booking.Id}</p>
-                </div>
 
                 <p style="color:#555;font-size:0.9em">Please arrive at least 15 minutes before the showtime.</p>
                 <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
@@ -150,14 +160,21 @@ public class NotificationService : INotificationService
             </div>
             """;
 
+        var fileName = $"Karta_{booking.Id:D8}.pdf";
+
         await SendEmailAsync(
             user.Email!,
             user.GetFullName(),
             $"Booking Confirmation #{booking.Id} — {booking.Showtime?.Movie?.Title}",
             html,
+            pdfTicket,
+            fileName,
             cancellationToken);
     }
 
+    // -----------------------------------------------------------------------
+    // Otkazivanje — samo email, bez PDF
+    // -----------------------------------------------------------------------
     public async Task SendCancellationNoticeAsync(
         Booking booking,
         ApplicationUser user,
@@ -217,9 +234,12 @@ public class NotificationService : INotificationService
             user.GetFullName(),
             $"Booking #{booking.Id} Cancelled — {booking.Showtime?.Movie?.Title}",
             html,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
+    // -----------------------------------------------------------------------
+    // Potvrda plaćanja
+    // -----------------------------------------------------------------------
     public async Task SendPaymentConfirmationAsync(
         Payment payment,
         ApplicationUser user,
@@ -244,7 +264,7 @@ public class NotificationService : INotificationService
                   </tr>
                   <tr>
                     <td style="padding:10px;border:1px solid #ddd"><b>Amount Paid</b></td>
-                    <td style="padding:10px;border:1px solid #ddd"><strong>&euro;{payment.Amount:F2}</strong></td>
+                    <td style="padding:10px;border:1px solid #ddd"><strong>€{payment.Amount:F2}</strong></td>
                   </tr>
                   <tr style="background:#f7f0ed">
                     <td style="padding:10px;border:1px solid #ddd"><b>Payment Method</b></td>
@@ -272,9 +292,12 @@ public class NotificationService : INotificationService
             user.GetFullName(),
             $"Payment Confirmation #{payment.Id} — CinemaVerse",
             html,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 
+    // -----------------------------------------------------------------------
+    // Potvrda povrata novca
+    // -----------------------------------------------------------------------
     public async Task SendRefundConfirmationAsync(
         Payment payment,
         ApplicationUser user,
@@ -295,7 +318,7 @@ public class NotificationService : INotificationService
                 <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
                   <tr style="background:#f7f0ed">
                     <td style="padding:10px;border:1px solid #ddd"><b>Refund Amount</b></td>
-                    <td style="padding:10px;border:1px solid #ddd"><strong>&euro;{payment.Amount:F2}</strong></td>
+                    <td style="padding:10px;border:1px solid #ddd"><strong>€{payment.Amount:F2}</strong></td>
                   </tr>
                   <tr>
                     <td style="padding:10px;border:1px solid #ddd"><b>Status</b></td>
@@ -320,6 +343,6 @@ public class NotificationService : INotificationService
             user.GetFullName(),
             $"Refund Confirmation — Payment #{payment.Id}",
             html,
-            cancellationToken);
+            cancellationToken: cancellationToken);
     }
 }

@@ -1,5 +1,5 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
-using CinemaBooking.Application.Services.Notifications;
+using CinemaBooking.Application.Notifications;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;
 using MediatR;

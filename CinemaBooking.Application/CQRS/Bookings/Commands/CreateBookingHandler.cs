@@ -1,6 +1,6 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
 using CinemaBooking.Application.DTOs.Bookings;
-using CinemaBooking.Application.Services.Notifications;
+using CinemaBooking.Application.Notifications;
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;
@@ -17,17 +17,20 @@ public class CreateBookingHandler
     private readonly IUnitOfWork _uow;
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly INotificationService _notificationService;
+    private readonly IPdfTicketService _pdfTicketService;
     private readonly ILogger<CreateBookingHandler> _logger;
 
     public CreateBookingHandler(
         IUnitOfWork uow,
         UserManager<ApplicationUser> userManager,
         INotificationService notificationService,
+        IPdfTicketService pdfTicketService,
         ILogger<CreateBookingHandler> logger)
     {
         _uow = uow;
         _userManager = userManager;
         _notificationService = notificationService;
+        _pdfTicketService = pdfTicketService;
         _logger = logger;
     }
 
@@ -83,11 +86,13 @@ public class CreateBookingHandler
             BookingSeats = seats.Select(s => new BookingSeat
             {
                 SeatId = s.Id,
+                Seat = s,
                 Price = showtime.Price + SeatTypeSurcharge.GetSurcharge(s.SeatType)
             }).ToList()
         };
 
         booking.CalculateTotalPrice();
+        // Navigation property postavljen da PDF/email servisi mogu čitati detalje
         booking.Showtime = showtime;
 
         _uow.Bookings.Add(booking);
@@ -101,7 +106,6 @@ public class CreateBookingHandler
             _logger.LogWarning(ex,
                 "Concurrency conflict while creating booking for showtime {ShowtimeId}.",
                 showtime.Id);
-
             return (null,
                 "The seats you selected were just taken by another user. Please refresh and try again.",
                 409);
@@ -140,15 +144,18 @@ public class CreateBookingHandler
             }).ToList()
         };
 
+        // Generisanje PDF karte i slanje emaila
+        // Ako PDF ili SMTP padne — booking ostaje potvrđen
         try
         {
+            var pdfTicket = _pdfTicketService.GenerateTicket(booking, user);
             await _notificationService.SendBookingConfirmationAsync(
-                booking, user, cancellationToken);
+                booking, user, pdfTicket, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Booking confirmation email failed for booking #{BookingId}, user {Email}.",
+                "PDF/email failed for booking #{BookingId}, user {Email}.",
                 booking.Id, user.Email);
         }
 

@@ -1,4 +1,4 @@
-﻿namespace CinemaBooking.Application.Services.Notifications;
+﻿namespace CinemaBooking.Application.Notifications;
 
 public class SmtpSettings
 {

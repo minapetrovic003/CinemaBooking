@@ -1,6 +1,6 @@
 ﻿using CinemaBooking.Application.DTOs.Payments;
 using CinemaBooking.Application.Services;             // <-- izmenjeno
-using CinemaBooking.Application.Services.Notifications;
+using CinemaBooking.Application.Notifications;
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;
@@ -126,6 +126,18 @@ public class PaymentService : IPaymentService
         }
 
         return (true, null);
+    }
+
+    public IEnumerable<PaymentDto> GetAll()
+    {
+        var payments = _uow.Payments.GetAllWithDetails();
+        return payments.Select(p =>
+        {
+            var user = p.Booking is not null
+                ? _userManager.Users.FirstOrDefault(u => u.Id == p.Booking.UserId)
+                : null;
+            return MapToDto(p, user);
+        });
     }
 
     private static PaymentDto MapToDto(Payment p, ApplicationUser? user) => new()
