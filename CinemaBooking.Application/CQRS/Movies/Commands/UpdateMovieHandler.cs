@@ -2,7 +2,7 @@
 using CinemaBooking.Domain.Repositories;
 using MediatR;
 
-namespace CinemaBooking.API.CQRS.Movies.Handlers;
+namespace CinemaBooking.Application.CQRS.Movies.Handlers;
 
 public class UpdateMovieHandler : IRequestHandler<UpdateMovieCommand, bool>
 {

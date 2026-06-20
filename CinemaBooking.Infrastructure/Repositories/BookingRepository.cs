@@ -1,7 +1,5 @@
-﻿using CinemaBooking.Domain;
+﻿using CinemaBooking.Domain.Models;
 using CinemaBooking.Domain.Repositories;
-using CinemaBooking.Infrastructure.Identity;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 
 namespace CinemaBooking.Infrastructure.Repositories;

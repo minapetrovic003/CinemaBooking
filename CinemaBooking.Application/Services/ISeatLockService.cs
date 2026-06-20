@@ -1,4 +1,4 @@
-﻿using CinemaBooking.Application.DTOs.SeatLocks;
+﻿using CinemaBooking.Domain.DTOs.SeatLocks;
 
 namespace CinemaBooking.Application.Services;
 

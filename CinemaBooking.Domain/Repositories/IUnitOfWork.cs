@@ -1,4 +1,6 @@
-﻿namespace CinemaBooking.Domain.Repositories;
+﻿using CinemaBooking.Domain.Models;
+
+namespace CinemaBooking.Domain.Repositories;
 
 public interface IUnitOfWork : IDisposable
 {

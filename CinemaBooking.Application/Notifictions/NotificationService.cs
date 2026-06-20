@@ -1,5 +1,5 @@
 ﻿using CinemaBooking.Application.Notifications;
-using CinemaBooking.Domain;
+using CinemaBooking.Domain.Models;
 using CinemaBooking.Infrastructure.Identity;
 using MailKit.Net.Smtp;
 using MailKit.Security;

@@ -1,4 +1,4 @@
-﻿using CinemaBooking.Application.DTOs.Payments;
+﻿using CinemaBooking.Domain.DTOs.Payments;
 
 namespace CinemaBooking.Application.Services;
 

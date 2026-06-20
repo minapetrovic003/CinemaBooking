@@ -1,5 +1,5 @@
-﻿using CinemaBooking.Application.DTOs.Bookings;
-using CinemaBooking.Application.DTOs.Common;
+﻿using CinemaBooking.Domain.DTOs.Bookings;
+using CinemaBooking.Domain.DTOs.Common;
 using MediatR;
 
 namespace CinemaBooking.Application.CQRS.Bookings.Queries;

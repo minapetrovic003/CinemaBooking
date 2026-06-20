@@ -1,4 +1,4 @@
-﻿using CinemaBooking.Application.DTOs.Showtimes;
+﻿using CinemaBooking.Domain.DTOs.Showtimes;
 using CinemaBooking.Application.Services;     // <-- izmenjeno
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;

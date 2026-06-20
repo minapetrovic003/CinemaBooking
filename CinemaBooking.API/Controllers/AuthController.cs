@@ -1,11 +1,11 @@
 ﻿using CinemaBooking.API.Autentification;
-using CinemaBooking.Application.DTOs.Auth;
-using CinemaBooking.API.Services.Auth;
+using CinemaBooking.Domain.DTOs.Auth;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using CinemaBooking.API.Services;
 
 namespace CinemaBooking.API.Controllers;
 

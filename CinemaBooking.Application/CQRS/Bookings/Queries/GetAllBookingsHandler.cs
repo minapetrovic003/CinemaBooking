@@ -1,7 +1,7 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Queries;
-using CinemaBooking.Application.DTOs.Bookings;
-using CinemaBooking.Application.DTOs.Common;
-using CinemaBooking.Domain;
+using CinemaBooking.Domain.DTOs.Bookings;
+using CinemaBooking.Domain.DTOs.Common;
+using CinemaBooking.Domain.Models;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;
 using MediatR;

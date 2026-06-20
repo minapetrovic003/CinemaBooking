@@ -1,4 +1,4 @@
-﻿using CinemaBooking.Domain;
+﻿using CinemaBooking.Domain.Models;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;

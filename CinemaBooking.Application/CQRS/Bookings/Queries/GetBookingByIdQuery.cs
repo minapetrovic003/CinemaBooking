@@ -1,4 +1,4 @@
-﻿using CinemaBooking.Application.DTOs.Bookings;
+﻿using CinemaBooking.Domain.DTOs.Bookings;
 using MediatR;
 
 namespace CinemaBooking.Application.CQRS.Bookings.Queries;

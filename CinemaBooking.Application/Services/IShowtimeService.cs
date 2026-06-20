@@ -1,4 +1,4 @@
-﻿using CinemaBooking.Application.DTOs.Showtimes;
+﻿using CinemaBooking.Domain.DTOs.Showtimes;
 
 namespace CinemaBooking.Application.Services;
 

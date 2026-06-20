@@ -1,4 +1,4 @@
-using CinemaBooking.Application.DTOs.SeatLocks;
+using CinemaBooking.Domain.DTOs.SeatLocks;
 using CinemaBooking.Application.Services;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;

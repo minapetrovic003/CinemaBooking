@@ -1,5 +1,4 @@
-﻿// CinemaBooking.Infrastructure/Repositories/ShowtimeRepository.cs
-using CinemaBooking.Domain;
+﻿using CinemaBooking.Domain.Models;
 using CinemaBooking.Domain.Repositories;
 using Microsoft.EntityFrameworkCore;
 

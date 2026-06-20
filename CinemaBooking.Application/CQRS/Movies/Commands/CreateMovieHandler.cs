@@ -1,6 +1,6 @@
 ﻿using CinemaBooking.Application.CQRS.Movies.Commands;
-using CinemaBooking.Application.DTOs.Movies;
-using CinemaBooking.Domain;
+using CinemaBooking.Domain.DTOs.Movies;
+using CinemaBooking.Domain.Models;
 using CinemaBooking.Domain.Repositories;
 using MediatR;
 

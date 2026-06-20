@@ -1,6 +1,6 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
 using CinemaBooking.Application.CQRS.Bookings.Queries;
-using CinemaBooking.Application.DTOs.Bookings;
+using CinemaBooking.Domain.DTOs.Bookings;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;

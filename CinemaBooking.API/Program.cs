@@ -2,7 +2,6 @@ using CinemaBooking.API.Autentification;
 using CinemaBooking.Application.CQRS.Behaviors;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
-using CinemaBooking.API.Services.Auth;
 using CinemaBooking.Application.Notifications;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure;

@@ -1,3 +1,5 @@
+using CinemaBooking.Domain.Models;
+
 namespace CinemaBooking.Domain.Repositories;
 
 public interface ISeatLockRepository
