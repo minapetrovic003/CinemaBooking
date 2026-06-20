@@ -16,6 +16,9 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using System.Text;
 using CinemaBooking.Application.Services.Notifications;
+using CinemaBooking.Application.CQRS.Bookings.Handlers;
+using CinemaBooking.Application.Notifications;
+using CinemaBooking.Application.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -34,7 +37,7 @@ builder.Services.AddCors(options =>
 
 builder.Services.AddMediatR(cfg =>
 {
-    cfg.RegisterServicesFromAssemblyContaining<Program>();
+    cfg.RegisterServicesFromAssemblyContaining<CreateBookingHandler>();
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 });
 
@@ -62,10 +65,10 @@ builder.Services.AddScoped<INotificationService, NotificationService>();
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 
-builder.Services.AddScoped<IMovieService, MovieService>();
+//builder.Services.AddScoped<IMovieService, MovieService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IShowtimeService, ShowtimeService>();
-builder.Services.AddScoped<IBookingService, BookingService>();
+//builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>(opt =>

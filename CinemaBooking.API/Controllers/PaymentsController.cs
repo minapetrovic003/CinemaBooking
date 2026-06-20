@@ -1,5 +1,5 @@
 ﻿using CinemaBooking.Application.DTOs.Payments;
-using CinemaBooking.API.Services;
+using CinemaBooking.Application.Services;    // <-- izmenjeno
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

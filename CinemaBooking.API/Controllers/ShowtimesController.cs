@@ -1,5 +1,5 @@
 ﻿using CinemaBooking.Application.DTOs.Showtimes;
-using CinemaBooking.API.Services;
+using CinemaBooking.Application.Services;     // <-- izmenjeno
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

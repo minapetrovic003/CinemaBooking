@@ -44,6 +44,31 @@ public class BookingsController : ControllerBase
             : Ok(result);
     }
 
+    /// <summary>
+    /// Javni endpoint za verifikaciju rezervacije (skeniranje QR koda).
+    /// Vraca osnovne informacije o rezervaciji — status, film, sedista.
+    /// </summary>
+    [HttpGet("{id}/verify")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Verify(long id)
+    {
+        var result = await _mediator.Send(new GetBookingByIdQuery(id));
+        if (result is null)
+            return NotFound(new { Message = $"Booking {id} not found." });
+
+        return Ok(new
+        {
+            BookingId = result.Id,
+            Status = result.Status,
+            Movie = result.MovieTitle,
+            Hall = result.HallName,
+            Showtime = result.ShowtimeStart,
+            Seats = result.Seats.Select(s => s.SeatLabel),
+            TotalPrice = result.TotalPrice,
+            CustomerName = result.UserFullName
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateBookingRequest request)
     {
@@ -76,12 +101,29 @@ public class BookingsController : ControllerBase
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(long id)
     {
-        // Verify booking exists before attempting cancellation
         var existing = await _mediator.Send(new GetBookingByIdQuery(id));
         if (existing is null)
             return NotFound(new { Message = $"Booking with id {id} not found." });
 
         var (success, errorMessage) = await _mediator.Send(new CancelBookingCommand(id));
+        return success
+            ? NoContent()
+            : Conflict(new { Message = errorMessage });
+    }
+
+    /// <summary>
+    /// Check-in pri ulasku u bioskop — poziva se nakon skeniranja QR koda (samo Admin).
+    /// Mijenja status rezervacije iz Confirmed → CheckedIn.
+    /// </summary>
+    [HttpPatch("{id}/checkin")]
+    [Authorize(Roles = "Admin")]
+    public async Task<IActionResult> CheckIn(long id)
+    {
+        var existing = await _mediator.Send(new GetBookingByIdQuery(id));
+        if (existing is null)
+            return NotFound(new { Message = $"Booking with id {id} not found." });
+
+        var (success, errorMessage) = await _mediator.Send(new CheckInBookingCommand(id));
         return success
             ? NoContent()
             : Conflict(new { Message = errorMessage });
