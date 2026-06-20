@@ -1,5 +1,5 @@
 ﻿using CinemaBooking.API.Autentification;
-using CinemaBooking.API.DTOs.Auth;
+using CinemaBooking.Application.DTOs.Auth;
 using CinemaBooking.API.Services.Auth;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;

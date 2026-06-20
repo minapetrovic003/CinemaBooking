@@ -1,5 +1,5 @@
-﻿using CinemaBooking.API.DTOs.Notifications;
-using CinemaBooking.API.Services.Notifications;
+﻿using CinemaBooking.Application.DTOs.Notifications;
+using CinemaBooking.Application.Services.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 

@@ -1,4 +1,4 @@
-using CinemaBooking.API.DTOs.SeatLocks;
+using CinemaBooking.Application.DTOs.SeatLocks;
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;
@@ -17,8 +17,12 @@ public class SeatLocksController : ControllerBase
     private readonly UserManager<ApplicationUser> _userManager;
     private readonly ILogger<SeatLocksController> _logger;
 
-    // Maksimalan broj minuta koji klijent može tražiti
     private const int MaxLockMinutes = 15;
+
+    // Belgrade timezone for user-facing time display
+    private static readonly TimeZoneInfo BelgradeZone =
+        TimeZoneInfo.FindSystemTimeZoneById(
+            OperatingSystem.IsWindows() ? "Central European Standard Time" : "Europe/Belgrade");
 
     public SeatLocksController(
         IUnitOfWork uow,
@@ -31,18 +35,77 @@ public class SeatLocksController : ControllerBase
     }
 
     /// <summary>
-    /// Privremeno zaključava sedišta za korisnika na max 15 minuta.
-    /// Vraća vreme isteka i broj sekundi do isteka (za countdown timer).
+    /// Returns consolidated seat availability for a showtime.
+    /// Frontend polls this every few seconds to keep the seat map current.
+    /// Returns: seatId, status (Available/Booked/Locked), lockedByCurrentUser
+    /// </summary>
+    [HttpGet("availability/{showtimeId:long}")]
+    [AllowAnonymous]
+    public async Task<IActionResult> GetAvailability(long showtimeId)
+    {
+        var showtime = _uow.Showtimes.GetByIdWithDetails(showtimeId);
+        if (showtime is null)
+            return NotFound(new { Message = $"Showtime {showtimeId} not found." });
+
+        // Get current user id if authenticated (to mark their own locks)
+        string? currentUserId = null;
+        if (User.Identity?.IsAuthenticated == true)
+        {
+            var email = User.FindFirst(System.Security.Claims.ClaimTypes.Email)?.Value
+                     ?? User.FindFirst("http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress")?.Value;
+            if (email is not null)
+            {
+                var u = await _userManager.FindByEmailAsync(email);
+                currentUserId = u?.Id;
+            }
+        }
+
+        var bookedSeatIds = _uow.Bookings.GetBookedSeatIds(showtimeId).ToHashSet();
+        var activeLocks = _uow.SeatLocks.GetActiveLocks(showtimeId).ToList();
+
+        var allSeats = showtime.Hall?.Seats ?? new List<Seat>();
+
+        var result = allSeats.Select(seat =>
+        {
+            var isBooked = bookedSeatIds.Contains(seat.Id);
+            var lockEntry = activeLocks.FirstOrDefault(l => l.SeatId == seat.Id);
+            var isLockedByOther = lockEntry is not null && lockEntry.UserId != currentUserId;
+            var isLockedByMe = lockEntry is not null && lockEntry.UserId == currentUserId;
+
+            return new SeatAvailabilityDto
+            {
+                SeatId = seat.Id,
+                Label = seat.GetSeatLabel(),
+                Row = seat.Row,
+                Number = seat.Number,
+                SeatType = seat.SeatType.ToString(),
+                Status = isBooked ? "Booked"
+                    : isLockedByOther ? "Locked"
+                    : isLockedByMe ? "MyLock"
+                    : "Available",
+                ExpiresAt = lockEntry?.ExpiresAt,
+                ExpiresInSeconds = lockEntry is not null
+                    ? Math.Max(0, (int)(lockEntry.ExpiresAt - DateTime.UtcNow).TotalSeconds)
+                    : null
+            };
+        });
+
+        return Ok(result);
+    }
+
+    /// <summary>
+    /// Temporarily locks seats for the user for up to 15 minutes.
+    /// Returns expiry time and seconds remaining (for countdown timer).
     /// </summary>
     [HttpPost("lock")]
     public async Task<IActionResult> LockSeats([FromBody] LockSeatsRequest request)
     {
-        // ── Validacija korisnika ─────────────────────────────────────────────
+        // Validate user
         var user = await _userManager.FindByEmailAsync(request.UserEmail);
         if (user is null)
             return NotFound(new { Message = $"User '{request.UserEmail}' not found." });
 
-        // ── Tražimo showtime ─────────────────────────────────────────────────
+        // Find showtime
         var showtime = _uow.Showtimes
             .GetByMovieTitleHallAndStartTime(
                 request.MovieTitle, request.HallName, request.ShowtimeStartTime);
@@ -53,7 +116,7 @@ public class SeatLocksController : ControllerBase
         if (showtime.StartTime <= DateTime.UtcNow)
             return Conflict(new { Message = "Cannot lock seats for past showtimes." });
 
-        // ── Tražimo sedišta ──────────────────────────────────────────────────
+        // Find seats by label
         var requestedLabels = request.Seats.Select(s => s.ToUpper()).ToList();
         var seats = showtime.Hall.Seats
             .Where(s => requestedLabels.Contains(s.GetSeatLabel().ToUpper()))
@@ -66,7 +129,7 @@ public class SeatLocksController : ControllerBase
         if (notFound.Any())
             return BadRequest(new { Message = $"Seats not found: {string.Join(", ", notFound)}" });
 
-        // ── Proveravamo da li su sedišta već rezervisana (potvrđene rezervacije) ──
+        // Check if seats are already booked (confirmed bookings)
         var bookedSeatIds = _uow.Bookings.GetBookedSeatIds(showtime.Id).ToList();
         var alreadyBooked = seats.Where(s => bookedSeatIds.Contains(s.Id)).ToList();
 
@@ -76,7 +139,7 @@ public class SeatLocksController : ControllerBase
                 Message = $"Seats already booked: {string.Join(", ", alreadyBooked.Select(s => s.GetSeatLabel()))}"
             });
 
-        // ── Proveravamo da li DRUGI korisnik drži aktivan lock ───────────────
+        // Check if seats are locked by ANOTHER user
         var seatIds = seats.Select(s => s.Id).ToList();
         var lockedByOthers = _uow.SeatLocks
             .GetActiveLocksForSeats(showtime.Id, seatIds)
@@ -96,9 +159,7 @@ public class SeatLocksController : ControllerBase
             });
         }
 
-        // ── Kreiramo lock-ove ────────────────────────────────────────────────
-        // Oslobađamo prethodne lock-ove ovog korisnika za isti showtime
-        // (korisnik menja selekciju sedišta)
+        // Release previous locks by this user for this showtime (user changed seat selection)
         _uow.SeatLocks.ReleaseLocksForUser(showtime.Id, user.Id);
 
         int lockMinutes = Math.Clamp(request.LockMinutes, 1, MaxLockMinutes);
@@ -110,21 +171,24 @@ public class SeatLocksController : ControllerBase
         _uow.SeatLocks.LockSeats(locks);
         _uow.SaveChanges();
 
+        // Convert expiry to Belgrade time for user-facing message
+        var expiresAtBelgrade = TimeZoneInfo.ConvertTimeFromUtc(expiresAt, BelgradeZone);
+
         _logger.LogInformation(
-            "User {Email} locked seats [{Seats}] for showtime {ShowtimeId}, expires at {ExpiresAt}",
+            "User {Email} locked seats [{Seats}] for showtime {ShowtimeId}, expires at {ExpiresAt} UTC",
             user.Email, string.Join(", ", requestedLabels), showtime.Id, expiresAt);
 
         return Ok(new SeatLockDto
         {
             LockedSeats = seats.Select(s => s.GetSeatLabel()).ToList(),
             ExpiresAt = expiresAt,
-            Message = $"Seats locked for {lockMinutes} minutes. Complete your booking before {expiresAt:HH:mm} UTC."
+            Message = $"Seats locked for {lockMinutes} minutes. Complete your booking before {expiresAtBelgrade:HH:mm} (Belgrade time)."
         });
     }
 
     /// <summary>
-    /// Ručno oslobađa lock-ove korisnika za dato prikazivanje.
-    /// Poziva se ako korisnik odustane od rezervacije.
+    /// Manually releases the current user's locks for a given showtime.
+    /// Call when user clicks Back/Cancel.
     /// </summary>
     [HttpDelete("release")]
     public async Task<IActionResult> ReleaseLocks([FromQuery] string userEmail, [FromQuery] long showtimeId)
@@ -140,8 +204,8 @@ public class SeatLocksController : ControllerBase
     }
 
     /// <summary>
-    /// Vraća listu zaključanih sedišta za dato prikazivanje.
-    /// Frontend može koristiti ovaj endpoint da u realnom vremenu ažurira prikaz sale.
+    /// Returns active lock seatIds for a showtime (legacy endpoint, kept for compatibility).
+    /// Prefer /availability/{showtimeId} for full seat status.
     /// </summary>
     [HttpGet("status/{showtimeId:long}")]
     public IActionResult GetLockStatus(long showtimeId)

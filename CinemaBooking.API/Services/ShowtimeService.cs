@@ -1,4 +1,4 @@
-﻿using CinemaBooking.API.DTOs.Showtimes;
+﻿using CinemaBooking.Application.DTOs.Showtimes;
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 

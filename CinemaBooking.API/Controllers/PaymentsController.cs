@@ -1,4 +1,4 @@
-﻿using CinemaBooking.API.DTOs.Payments;
+﻿using CinemaBooking.Application.DTOs.Payments;
 using CinemaBooking.API.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

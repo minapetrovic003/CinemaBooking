@@ -1,4 +1,4 @@
-﻿using CinemaBooking.API.DTOs.Showtimes;
+﻿using CinemaBooking.Application.DTOs.Showtimes;
 using CinemaBooking.API.Services;
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;

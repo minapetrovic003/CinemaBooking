@@ -1,4 +1,5 @@
-﻿using System.Net;
+﻿using FluentValidation;
+using System.Net;
 using System.Text.Json;
 
 namespace CinemaBooking.API.Middlewares;
@@ -31,24 +32,70 @@ public class GlobalExceptionMiddleware
     {
         context.Response.ContentType = "application/json";
 
-        var (statusCode, message) = exception switch
+        object response;
+        int statusCode;
+
+        switch (exception)
         {
-            ArgumentException => (HttpStatusCode.BadRequest, exception.Message),
-            KeyNotFoundException => (HttpStatusCode.NotFound, exception.Message),
-            InvalidOperationException => (HttpStatusCode.Conflict, exception.Message),
-            _ => (HttpStatusCode.InternalServerError, "An unexpected error occurred.")
-        };
+            case ValidationException validationEx:
+                statusCode = (int)HttpStatusCode.BadRequest;
+                response = new
+                {
+                    StatusCode = statusCode,
+                    Message = "Validation failed.",
+                    Errors = validationEx.Errors.Select(e => new
+                    {
+                        Field = e.PropertyName,
+                        Error = e.ErrorMessage
+                    }),
+                    Timestamp = DateTime.UtcNow
+                };
+                break;
 
-        context.Response.StatusCode = (int)statusCode;
+            case ArgumentException argEx:
+                statusCode = (int)HttpStatusCode.BadRequest;
+                response = new
+                {
+                    StatusCode = statusCode,
+                    Message = argEx.Message,
+                    Timestamp = DateTime.UtcNow
+                };
+                break;
 
-        var response = new
-        {
-            StatusCode = (int)statusCode,
-            Message = message,
-            Timestamp = DateTime.UtcNow
-        };
+            case KeyNotFoundException notFoundEx:
+                statusCode = (int)HttpStatusCode.NotFound;
+                response = new
+                {
+                    StatusCode = statusCode,
+                    Message = notFoundEx.Message,
+                    Timestamp = DateTime.UtcNow
+                };
+                break;
 
-        await context.Response.WriteAsync(JsonSerializer.Serialize(response));
+            case InvalidOperationException invEx:
+                statusCode = (int)HttpStatusCode.Conflict;
+                response = new
+                {
+                    StatusCode = statusCode,
+                    Message = invEx.Message,
+                    Timestamp = DateTime.UtcNow
+                };
+                break;
+
+            default:
+                statusCode = (int)HttpStatusCode.InternalServerError;
+                response = new
+                {
+                    StatusCode = statusCode,
+                    Message = "An unexpected error occurred. Please try again later.",
+                    Timestamp = DateTime.UtcNow
+                };
+                break;
+        }
+
+        context.Response.StatusCode = statusCode;
+        await context.Response.WriteAsync(JsonSerializer.Serialize(response,
+            new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }));
     }
 }
 

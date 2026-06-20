@@ -1,5 +1,5 @@
-﻿using CinemaBooking.API.DTOs.Payments;
-using CinemaBooking.API.Services.Notifications;
+﻿using CinemaBooking.Application.DTOs.Payments;
+using CinemaBooking.Application.Services.Notifications;
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;

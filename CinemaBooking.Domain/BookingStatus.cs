@@ -5,5 +5,6 @@ public enum BookingStatus
     Pending,
     Confirmed,
     Canceled,
-    Expired
+    Expired,
+    CheckedIn   // Gost je pristigao i QR je skeniran
 }

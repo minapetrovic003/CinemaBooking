@@ -1,5 +1,5 @@
 using CinemaBooking.API.Autentification;
-using CinemaBooking.API.CQRS.Behaviors;
+using CinemaBooking.Application.CQRS.Behaviors;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
 using CinemaBooking.API.Services.Auth;
@@ -15,6 +15,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using System.Text;
+using CinemaBooking.Application.Services.Notifications;
 
 var builder = WebApplication.CreateBuilder(args);
 

@@ -1,6 +1,6 @@
-﻿using CinemaBooking.API.CQRS.Bookings.Commands;
-using CinemaBooking.API.CQRS.Bookings.Queries;
-using CinemaBooking.API.DTOs.Bookings;
+﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
+using CinemaBooking.Application.CQRS.Bookings.Queries;
+using CinemaBooking.Application.DTOs.Bookings;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
@@ -76,7 +76,7 @@ public class BookingsController : ControllerBase
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(long id)
     {
-        // Proveri da li booking postoji
+        // Verify booking exists before attempting cancellation
         var existing = await _mediator.Send(new GetBookingByIdQuery(id));
         if (existing is null)
             return NotFound(new { Message = $"Booking with id {id} not found." });

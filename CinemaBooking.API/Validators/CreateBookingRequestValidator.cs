@@ -1,4 +1,4 @@
-﻿using CinemaBooking.API.DTOs.Bookings;
+﻿using CinemaBooking.Application.DTOs.Bookings;
 using FluentValidation;
 
 namespace CinemaBooking.API.Validators;
