@@ -7,6 +7,13 @@ public class IdempotencyMiddleware
     private static readonly ConcurrentDictionary<string, CachedResponse> _responses = new();
     private readonly RequestDelegate _next;
 
+    // Rute koje su izuzete iz idempotency provjere
+    private static readonly string[] _excludedPaths =
+    [
+        "/auth/login",
+        "/auth/register"
+    ];
+
     public IdempotencyMiddleware(RequestDelegate next)
     {
         _next = next;
@@ -15,6 +22,14 @@ public class IdempotencyMiddleware
     public async Task Invoke(HttpContext httpContext)
     {
         if (httpContext.Request.Method != HttpMethods.Post)
+        {
+            await _next(httpContext);
+            return;
+        }
+
+        // Auth endpointi su izuzeti — login/register nisu idempotentne operacije
+        var path = httpContext.Request.Path.Value ?? string.Empty;
+        if (_excludedPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
         {
             await _next(httpContext);
             return;
