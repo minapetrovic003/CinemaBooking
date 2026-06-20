@@ -40,7 +40,7 @@ public class JwtTokenService : IJwtTokenService
         var token = new JwtSecurityToken(
             issuer: _jwtOptions.Issuer,
             audience: _jwtOptions.Audience,
-            //expires: DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes),
+            expires: DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes),
             claims: claims,
             signingCredentials: credentials
         );
