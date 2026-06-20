@@ -1,5 +1,5 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
-using CinemaBooking.Domain.Repositories;
+using CinemaBooking.Application.Repositories;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -25,12 +25,18 @@ public class CheckInBookingHandler
         if (booking is null)
             return Task.FromResult((false, (string?)"Booking not found."));
 
+        // Vlasnik može check-in svoju rezervaciju; Admin može check-in bilo koju
+        if (!request.RequestingUserIsAdmin && booking.UserId != request.RequestingUserId)
+            return Task.FromResult((false, (string?)"You can only check in your own booking."));
+
         if (!booking.CheckIn())
-            return Task.FromResult((false, (string?)"Only confirmed bookings can be checked in."));
+            return Task.FromResult((false, (string?)"Only confirmed (paid) bookings can be checked in."));
 
         _uow.SaveChanges();
 
-        _logger.LogInformation("Booking #{BookingId} checked in successfully.", booking.Id);
+        _logger.LogInformation(
+            "Booking #{BookingId} checked in by user {UserId} (admin: {IsAdmin}).",
+            booking.Id, request.RequestingUserId, request.RequestingUserIsAdmin);
 
         return Task.FromResult((true, (string?)null));
     }

@@ -14,6 +14,16 @@ public class Booking
     public ICollection<BookingSeat> BookingSeats { get; set; } = new List<BookingSeat>();
     public Payment? Payment { get; set; }
 
+    public bool Confirm()
+    {
+        if (Status == BookingStatus.Pending)
+        {
+            Status = BookingStatus.Confirmed;
+            return true;
+        }
+        return false;
+    }
+
     public bool Cancel()
     {
         if (Status == BookingStatus.Confirmed || Status == BookingStatus.Pending)

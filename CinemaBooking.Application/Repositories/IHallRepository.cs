@@ -1,6 +1,6 @@
 ﻿using CinemaBooking.Domain.Models;
 
-namespace CinemaBooking.Domain.Repositories;
+namespace CinemaBooking.Application.Repositories;
 
 public interface IHallRepository : IRepository<Hall>
 {

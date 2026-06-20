@@ -1,6 +1,5 @@
-﻿using CinemaBooking.Application.Notifications;
+﻿using CinemaBooking.Domain.DTOs.Users;
 using CinemaBooking.Domain.Models;
-using CinemaBooking.Infrastructure.Identity;
 using MailKit.Net.Smtp;
 using MailKit.Security;
 using Microsoft.Extensions.Logging;
@@ -88,11 +87,11 @@ public class NotificationService : INotificationService
     }
 
     // -----------------------------------------------------------------------
-    // Potvrda rezervacije — email + PDF karta
+    // Potvrda rezervacije (šalje se nakon plaćanja) — email + PDF karta
     // -----------------------------------------------------------------------
     public async Task SendBookingConfirmationAsync(
         Booking booking,
-        ApplicationUser user,
+        UserInfo user,
         byte[] pdfTicket,
         CancellationToken cancellationToken = default)
     {
@@ -115,8 +114,8 @@ public class NotificationService : INotificationService
               </div>
               <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
                 <h2 style="color:#1a0e0e;margin-top:0">&#x2705; Your booking is confirmed!</h2>
-                <p>Dear <strong>{user.GetFullName()}</strong>,</p>
-                <p>Thank you for your booking. Your ticket is attached as a PDF — please show it at the cinema entrance.</p>
+                <p>Dear <strong>{user.FullName}</strong>,</p>
+                <p>Your payment has been processed and your ticket is attached as a PDF — please show it at the cinema entrance.</p>
 
                 <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
                   <tr style="background:#f7f0ed">
@@ -160,11 +159,11 @@ public class NotificationService : INotificationService
             </div>
             """;
 
-        var fileName = $"Karta_{booking.Id:D8}.pdf";
+        var fileName = $"Ticket_{booking.Id:D8}.pdf";
 
         await SendEmailAsync(
-            user.Email!,
-            user.GetFullName(),
+            user.Email,
+            user.FullName,
             $"Booking Confirmation #{booking.Id} — {booking.Showtime?.Movie?.Title}",
             html,
             pdfTicket,
@@ -177,7 +176,7 @@ public class NotificationService : INotificationService
     // -----------------------------------------------------------------------
     public async Task SendCancellationNoticeAsync(
         Booking booking,
-        ApplicationUser user,
+        UserInfo user,
         CancellationToken cancellationToken = default)
     {
         var seatLabels = string.Join(", ",
@@ -195,7 +194,7 @@ public class NotificationService : INotificationService
               </div>
               <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
                 <h2 style="color:#c0392b;margin-top:0">&#x274C; Your booking has been cancelled</h2>
-                <p>Dear <strong>{user.GetFullName()}</strong>,</p>
+                <p>Dear <strong>{user.FullName}</strong>,</p>
                 <p>The following booking has been successfully cancelled:</p>
                 <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
                   <tr style="background:#f7f0ed">
@@ -214,10 +213,6 @@ public class NotificationService : INotificationService
                     <td style="padding:10px;border:1px solid #ddd"><b>Seats</b></td>
                     <td style="padding:10px;border:1px solid #ddd">{seatLabels}</td>
                   </tr>
-                  <tr style="background:#f7f0ed">
-                    <td style="padding:10px;border:1px solid #ddd"><b>Status</b></td>
-                    <td style="padding:10px;border:1px solid #ddd"><strong style="color:#c0392b">Cancelled</strong></td>
-                  </tr>
                 </table>
                 <p>If you did not request this cancellation, please contact us immediately.</p>
                 <p>We hope to see you again at CinemaVerse!</p>
@@ -230,8 +225,8 @@ public class NotificationService : INotificationService
             """;
 
         await SendEmailAsync(
-            user.Email!,
-            user.GetFullName(),
+            user.Email,
+            user.FullName,
             $"Booking #{booking.Id} Cancelled — {booking.Showtime?.Movie?.Title}",
             html,
             cancellationToken: cancellationToken);
@@ -242,7 +237,7 @@ public class NotificationService : INotificationService
     // -----------------------------------------------------------------------
     public async Task SendPaymentConfirmationAsync(
         Payment payment,
-        ApplicationUser user,
+        UserInfo user,
         CancellationToken cancellationToken = default)
     {
         var paymentDateLocal = ToBelgrade(payment.PaymentDate);
@@ -255,7 +250,7 @@ public class NotificationService : INotificationService
               </div>
               <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
                 <h2 style="color:#27ae60;margin-top:0">&#x1F4B3; Payment Successful</h2>
-                <p>Dear <strong>{user.GetFullName()}</strong>,</p>
+                <p>Dear <strong>{user.FullName}</strong>,</p>
                 <p>Your payment has been successfully processed.</p>
                 <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
                   <tr style="background:#f7f0ed">
@@ -288,8 +283,8 @@ public class NotificationService : INotificationService
             """;
 
         await SendEmailAsync(
-            user.Email!,
-            user.GetFullName(),
+            user.Email,
+            user.FullName,
             $"Payment Confirmation #{payment.Id} — CinemaVerse",
             html,
             cancellationToken: cancellationToken);
@@ -300,7 +295,7 @@ public class NotificationService : INotificationService
     // -----------------------------------------------------------------------
     public async Task SendRefundConfirmationAsync(
         Payment payment,
-        ApplicationUser user,
+        UserInfo user,
         CancellationToken cancellationToken = default)
     {
         var processedDateLocal = ToBelgrade(payment.PaymentDate);
@@ -313,7 +308,7 @@ public class NotificationService : INotificationService
               </div>
               <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
                 <h2 style="color:#2980b9;margin-top:0">&#x1F504; Refund Processed</h2>
-                <p>Dear <strong>{user.GetFullName()}</strong>,</p>
+                <p>Dear <strong>{user.FullName}</strong>,</p>
                 <p>Your refund for payment <strong>#{payment.Id}</strong> has been successfully processed.</p>
                 <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
                   <tr style="background:#f7f0ed">
@@ -339,8 +334,8 @@ public class NotificationService : INotificationService
             """;
 
         await SendEmailAsync(
-            user.Email!,
-            user.GetFullName(),
+            user.Email,
+            user.FullName,
             $"Refund Confirmation — Payment #{payment.Id}",
             html,
             cancellationToken: cancellationToken);

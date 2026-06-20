@@ -3,7 +3,7 @@ using CinemaBooking.Application.CQRS.Behaviors;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
 using CinemaBooking.Application.Notifications;
-using CinemaBooking.Domain.Repositories;
+using CinemaBooking.Application.Repositories;
 using CinemaBooking.Infrastructure;
 using CinemaBooking.Infrastructure.Identity;
 using FluentValidation;
@@ -18,6 +18,7 @@ using CinemaBooking.Application.CQRS.Bookings.Handlers;
 using CinemaBooking.Application.Services;
 using CinemaBooking.API.Extensions;
 using CinemaBooking.Application.CQRS.Bookings.Validators;
+using CinemaBooking.Application.Config;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -51,6 +52,8 @@ builder.Services.AddDbContext<CinemaBookingContext>(options =>
 });
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
 
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
     ?? throw new InvalidOperationException("JWT configuration is missing.");
@@ -60,18 +63,17 @@ if (string.IsNullOrWhiteSpace(jwtOptions.Key))
     throw new InvalidOperationException("JWT key is missing.");
 }
 
-builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IPdfTicketService, PdfTicketService>();
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
 
-//builder.Services.AddScoped<IMovieService, MovieService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IShowtimeService, ShowtimeService>();
-//builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
-builder.Services.AddScoped<ISeatLockService, SeatLockService>();  // ← DODAJ OVU LINIJU
+builder.Services.AddScoped<ISeatLockService, SeatLockService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>(opt =>
 {
@@ -122,8 +124,6 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
     app.MapScalarApiReference();
 }
-
-// app.UseHttpsRedirection();
 
 app.UseAuthentication();
 app.UseAuthorization();

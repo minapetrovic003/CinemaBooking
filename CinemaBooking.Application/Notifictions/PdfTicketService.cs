@@ -1,5 +1,7 @@
-﻿using CinemaBooking.Domain.Models;
-using CinemaBooking.Infrastructure.Identity;
+﻿using CinemaBooking.Application.Config;
+using CinemaBooking.Domain.DTOs.Users;
+using CinemaBooking.Domain.Models;
+using Microsoft.Extensions.Options;
 using QRCoder;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -9,28 +11,24 @@ namespace CinemaBooking.Application.Notifications;
 
 public class PdfTicketService : IPdfTicketService
 {
-    public PdfTicketService()
+    private readonly string _frontendUrl;
+
+    public PdfTicketService(IOptions<AppSettings> appSettings)
     {
         QuestPDF.Settings.License = LicenseType.Community;
+        _frontendUrl = appSettings.Value.FrontendUrl.TrimEnd('/');
     }
 
-    public byte[] GenerateTicket(Booking booking, ApplicationUser user)
+    public byte[] GenerateTicket(Booking booking, UserInfo user)
     {
-        var qrBytes = GenerateQrCode(booking);
+        var qrBytes = GenerateQrCode(booking, _frontendUrl);
         return GeneratePdf(booking, user, qrBytes);
     }
 
-    private static byte[] GenerateQrCode(Booking booking)
+    private static byte[] GenerateQrCode(Booking booking, string frontendUrl)
     {
-        var seats = string.Join(",",
-            booking.BookingSeats.Select(bs => bs.GetSeatLabel()));
-
-        var payload =
-            $"BOOKING:{booking.Id}|" +
-            $"MOVIE:{booking.Showtime?.Movie?.Title}|" +
-            $"TIME:{booking.Showtime?.StartTime:yyyy-MM-ddTHH:mm}|" +
-            $"HALL:{booking.Showtime?.Hall?.Name}|" +
-            $"SEATS:{seats}";
+        // QR vodi na frontend verify stranicu — korisnik skenira i check-in radi sam
+        var payload = $"{frontendUrl}/#verify/{booking.Id}";
 
         using var qrGenerator = new QRCodeGenerator();
         using var qrData = qrGenerator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);
@@ -39,7 +37,7 @@ public class PdfTicketService : IPdfTicketService
         return qrCode.GetGraphic(6);
     }
 
-    private static byte[] GeneratePdf(Booking booking, ApplicationUser user, byte[] qrBytes)
+    private static byte[] GeneratePdf(Booking booking, UserInfo user, byte[] qrBytes)
     {
         var movieTitle = booking.Showtime?.Movie?.Title ?? "—";
         var hallName = booking.Showtime?.Hall?.Name ?? "—";
@@ -73,23 +71,23 @@ public class PdfTicketService : IPdfTicketService
 
                             left.Item()
                                 .PaddingTop(4)
-                                .Text("Vaša bioskopska karta")
+                                .Text("Cinema Ticket")
                                 .FontSize(9).FontColor(accentRed);
 
                             left.Item()
-                                .PaddingTop(24)
+                                .PaddingTop(20)
                                 .LineHorizontal(1)
                                 .LineColor(Color.FromHex("#33FFFFFF"));
 
                             left.Item()
-                                .PaddingTop(20)
+                                .PaddingTop(16)
                                 .Column(info =>
                                 {
-                                    LeftLabelValue(info, "Film", movieTitle, Colors.White, accentRed);
-                                    LeftLabelValue(info, "Datum", startTime.ToString("dd.MM.yyyy"), Colors.White, Colors.White);
-                                    LeftLabelValue(info, "Vrijeme", startTime.ToString("HH:mm"), Colors.White, Colors.White);
-                                    LeftLabelValue(info, "Sala", hallName, Colors.White, Colors.White);
-                                    LeftLabelValue(info, "Sjedišta", seatLabel, Colors.White, Colors.White);
+                                    LeftLabelValue(info, "Movie", movieTitle, Colors.White, accentRed);
+                                    LeftLabelValue(info, "Date", startTime.ToString("dd.MM.yyyy"), Colors.White, Colors.White);
+                                    LeftLabelValue(info, "Time", startTime.ToString("HH:mm"), Colors.White, Colors.White);
+                                    LeftLabelValue(info, "Hall", hallName, Colors.White, Colors.White);
+                                    LeftLabelValue(info, "Seats", seatLabel, Colors.White, Colors.White);
                                 });
 
                             left.Item().Extend();
@@ -99,7 +97,7 @@ public class PdfTicketService : IPdfTicketService
                                 .Padding(10)
                                 .Column(c =>
                                 {
-                                    c.Item().Text("REZERVACIJA")
+                                    c.Item().Text("BOOKING")
                                         .FontSize(7).FontColor(midGray).LetterSpacing(2);
                                     c.Item().Text($"#{booking.Id:D8}")
                                         .FontSize(16).Bold().FontColor(accentRed);
@@ -113,13 +111,13 @@ public class PdfTicketService : IPdfTicketService
                         {
                             right.Item()
                                 .Background(lightGray)
-                                .Padding(16)
+                                .Padding(14)
                                 .Row(header =>
                                 {
                                     header.RelativeItem().Column(hc =>
                                     {
                                         hc.Item().Text(movieTitle)
-                                            .FontSize(16).Bold().FontColor(darkBg);
+                                            .FontSize(15).Bold().FontColor(darkBg);
                                         hc.Item().Text(
                                             startTime.ToString("dddd, dd MMMM yyyy",
                                                 System.Globalization.CultureInfo.GetCultureInfo("sr-Latn-RS")))
@@ -128,59 +126,57 @@ public class PdfTicketService : IPdfTicketService
                                 });
 
                             right.Item()
-                                .Padding(16)
+                                .Padding(14)
                                 .Column(details =>
                                 {
-                                    details.Item().Text("PODACI O KORISNIKU")
+                                    details.Item().Text("CUSTOMER")
                                         .FontSize(7).FontColor(midGray).LetterSpacing(1.5f);
-                                    details.Item().PaddingTop(8).Column(uc =>
+                                    details.Item().PaddingTop(6).Column(uc =>
                                     {
-                                        DetailRow(uc, "Ime i prezime", user.GetFullName());
-                                        DetailRow(uc, "Email", user.Email ?? "—");
+                                        DetailRow(uc, "Name", user.FullName);
+                                        DetailRow(uc, "Email", user.Email);
                                     });
 
-                                    details.Item().PaddingTop(14).Text("DETALJI PROJEKCIJE")
+                                    details.Item().PaddingTop(10).Text("SCREENING DETAILS")
                                         .FontSize(7).FontColor(midGray).LetterSpacing(1.5f);
-                                    details.Item().PaddingTop(8).Column(pc =>
+                                    details.Item().PaddingTop(6).Column(pc =>
                                     {
-                                        DetailRow(pc, "Film", movieTitle);
-                                        DetailRow(pc, "Sala", hallName);
-                                        DetailRow(pc, "Sjedišta", seatLabel);
-                                        DetailRow(pc, "Datum kreiranja", booking.CreatedAt.ToString("dd.MM.yyyy HH:mm"));
-                                        DetailRow(pc, "Ukupna cijena", $"€{booking.TotalPrice:F2}");
+                                        DetailRow(pc, "Movie", movieTitle);
+                                        DetailRow(pc, "Hall", hallName);
+                                        DetailRow(pc, "Seats", seatLabel);
+                                        DetailRow(pc, "Booked on", booking.CreatedAt.ToString("dd.MM.yyyy HH:mm"));
+                                        DetailRow(pc, "Total price", $"€{booking.TotalPrice:F2}");
                                     });
                                 });
 
                             right.Item().Extend();
 
                             right.Item()
-                                .Padding(16)
+                                .Padding(14)
                                 .Row(footer =>
                                 {
                                     footer.AutoItem().Column(qrCol =>
                                     {
-                                        qrCol.Item().Width(80).Height(80).Image(qrBytes);
-                                        qrCol.Item().PaddingTop(4)
-                                            .Text("Skeniraj za provjeru")
+                                        qrCol.Item().Width(75).Height(75).Image(qrBytes);
+                                        qrCol.Item().PaddingTop(3)
+                                            .Text("Scan to check in")
                                             .FontSize(6).FontColor(midGray).AlignCenter();
                                     });
 
-                                    footer.RelativeItem().PaddingLeft(14).Column(fc =>
+                                    footer.RelativeItem().PaddingLeft(12).Column(fc =>
                                     {
                                         fc.Item().Extend();
-                                        fc.Item().Text($"Rezervacija #{booking.Id:D8}")
+                                        fc.Item().Text($"Booking #{booking.Id:D8}")
                                             .FontSize(8).Bold().FontColor(darkBg);
-                                        fc.Item().Text("Molimo Vas da ovu kartu pokažete")
+                                        fc.Item().Text("Please present this ticket at the entrance.")
                                             .FontSize(7).FontColor(midGray);
-                                        fc.Item().Text("osoblju na ulazu u bioskop.")
-                                            .FontSize(7).FontColor(midGray);
-                                        fc.Item().PaddingTop(6)
-                                            .Text("© CinemaVerse — automatska poruka")
+                                        fc.Item().PaddingTop(4)
+                                            .Text("© CinemaVerse — automated message")
                                             .FontSize(6).FontColor(Color.FromHex("#dee2e6"));
                                     });
                                 });
 
-                            right.Item().Height(6).Background(accentRed);
+                            right.Item().Height(5).Background(accentRed);
                         });
                 });
             });
@@ -191,20 +187,20 @@ public class PdfTicketService : IPdfTicketService
         ColumnDescriptor col, string label, string value,
         string valueColor, string labelColor)
     {
-        col.Item().PaddingTop(10).Column(c =>
+        col.Item().PaddingTop(8).Column(c =>
         {
             c.Item().Text(label.ToUpper())
                 .FontSize(7).FontColor(labelColor).LetterSpacing(1);
             c.Item().PaddingTop(2).Text(value)
-                .FontSize(11).Bold().FontColor(valueColor);
+                .FontSize(10).Bold().FontColor(valueColor);
         });
     }
 
     private static void DetailRow(ColumnDescriptor col, string label, string value)
     {
-        col.Item().PaddingTop(5).Row(r =>
+        col.Item().PaddingTop(4).Row(r =>
         {
-            r.ConstantItem(95).Text(label + ":")
+            r.ConstantItem(90).Text(label + ":")
                 .FontSize(8).FontColor(Color.FromHex("#6c757d"));
             r.RelativeItem().Text(value)
                 .FontSize(8).Bold().FontColor(Color.FromHex("#1a0e0e"));

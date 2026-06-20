@@ -1,39 +1,28 @@
-﻿using CinemaBooking.Domain.Models;
-using CinemaBooking.Infrastructure.Identity;
+﻿using CinemaBooking.Domain.DTOs.Users;
+using CinemaBooking.Domain.Models;
 
 namespace CinemaBooking.Application.Notifications;
 
 public interface INotificationService
 {
     Task SendEmailAsync(
-        string toEmail,
-        string toName,
-        string subject,
-        string htmlBody,
-        byte[]? attachmentBytes = null,
-        string? attachmentFileName = null,
+        string toEmail, string toName, string subject, string htmlBody,
+        byte[]? attachmentBytes = null, string? attachmentFileName = null,
         CancellationToken cancellationToken = default);
 
-    // Rezervacija — šalje email + PDF karta kao prilog
     Task SendBookingConfirmationAsync(
-        Booking booking,
-        ApplicationUser user,
-        byte[] pdfTicket,
+        Booking booking, UserInfo user, byte[] pdfTicket,
         CancellationToken cancellationToken = default);
 
-    // Otkazivanje — samo email, bez PDF-a
     Task SendCancellationNoticeAsync(
-        Booking booking,
-        ApplicationUser user,
+        Booking booking, UserInfo user,
         CancellationToken cancellationToken = default);
 
     Task SendPaymentConfirmationAsync(
-        Payment payment,
-        ApplicationUser user,
+        Payment payment, UserInfo user,
         CancellationToken cancellationToken = default);
 
     Task SendRefundConfirmationAsync(
-        Payment payment,
-        ApplicationUser user,
+        Payment payment, UserInfo user,
         CancellationToken cancellationToken = default);
 }

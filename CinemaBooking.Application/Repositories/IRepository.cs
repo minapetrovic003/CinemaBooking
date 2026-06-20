@@ -1,6 +1,6 @@
 ﻿using System.Linq.Expressions;
 
-namespace CinemaBooking.Domain.Repositories;
+namespace CinemaBooking.Application.Repositories;
 
 public interface IRepository<T> where T : class
 {

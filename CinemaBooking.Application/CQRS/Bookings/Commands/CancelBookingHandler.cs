@@ -1,9 +1,7 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
 using CinemaBooking.Application.Notifications;
-using CinemaBooking.Domain.Repositories;
-using CinemaBooking.Infrastructure.Identity;
+using CinemaBooking.Application.Repositories;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.Extensions.Logging;
 
 namespace CinemaBooking.Application.CQRS.Bookings.Handlers;
@@ -12,18 +10,18 @@ public class CancelBookingHandler
     : IRequestHandler<CancelBookingCommand, (bool Success, string? ErrorMessage)>
 {
     private readonly IUnitOfWork _uow;
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IUserRepository _userRepository;
     private readonly INotificationService _notificationService;
     private readonly ILogger<CancelBookingHandler> _logger;
 
     public CancelBookingHandler(
         IUnitOfWork uow,
-        UserManager<ApplicationUser> userManager,
+        IUserRepository userRepository,
         INotificationService notificationService,
         ILogger<CancelBookingHandler> logger)
     {
         _uow = uow;
-        _userManager = userManager;
+        _userRepository = userRepository;
         _notificationService = notificationService;
         _logger = logger;
     }
@@ -40,9 +38,10 @@ public class CancelBookingHandler
 
         _uow.SaveChanges();
 
+        // Email o otkazivanju — samo ako je postojao potvrđeni booking (ne Pending)
         try
         {
-            var user = await _userManager.FindByIdAsync(booking.UserId);
+            var user = await _userRepository.FindByIdAsync(booking.UserId);
             if (user is not null)
                 await _notificationService.SendCancellationNoticeAsync(booking, user, cancellationToken);
             else
