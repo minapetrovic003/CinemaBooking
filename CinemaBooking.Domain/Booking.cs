@@ -24,7 +24,6 @@ public class Booking
         return false;
     }
 
-    // Poziva se pri skeniranju QR koda na ulazu u bioskop
     public bool CheckIn()
     {
         if (Status == BookingStatus.Confirmed)

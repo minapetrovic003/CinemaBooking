@@ -10,6 +10,5 @@ public class SmtpSettings
     public string FromName { get; set; } = "CinemaVerse";
     public bool UseSsl { get; set; } = true;
 
-    // Baza URL-a frontenda — koristi se za QR kod u emailu
     public string FrontendBaseUrl { get; set; } = "http://localhost:5173";
 }

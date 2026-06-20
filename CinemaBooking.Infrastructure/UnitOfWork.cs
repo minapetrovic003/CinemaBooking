@@ -24,7 +24,7 @@ public class UnitOfWork : IUnitOfWork
     }
 
     public IMovieRepository Movies =>
-        _movies ??= new MovieRepository(_context);
+        _movies ??= new MovieRepository(_context);//lazy initialization
 
     public IHallRepository Halls =>
         _halls ??= new HallRepository(_context);
