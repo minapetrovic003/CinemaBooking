@@ -31,38 +31,32 @@ public class CancelBookingHandler
     public async Task<(bool Success, string? ErrorMessage)> Handle(
         CancelBookingCommand request, CancellationToken cancellationToken)
     {
-        // NAPOMENA: koristimo GetByIdWithDetails umjesto GetById kako bismo
-        // imali Showtime, Movie, Hall, BookingSeats i Seat učitane za email
         var booking = _uow.Bookings.GetByIdWithDetails(request.Id);
         if (booking is null)
             return (false, (string?)null);
 
         if (!booking.Cancel())
-            return (false, "Booking cannot be canceled in its current status.");
+            return (false, "Booking cannot be cancelled in its current status.");
 
         _uow.SaveChanges();
 
-        // Slanje emaila: ako SMTP padne, NE obaramo otkazivanje
         try
         {
             var user = await _userManager.FindByIdAsync(booking.UserId);
             if (user is not null)
-            {
                 await _notificationService.SendCancellationNoticeAsync(booking, user, cancellationToken);
-            }
             else
-            {
                 _logger.LogWarning(
-                    "Korisnik nije pronađen za booking #{BookingId} — email nije poslan.",
+                    "User not found for booking #{BookingId} — cancellation email not sent.",
                     booking.Id);
-            }
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Cancellation email nije poslan za booking #{BookingId}",
+                "Cancellation email failed for booking #{BookingId}.",
                 booking.Id);
         }
+
         return (true, (string?)null);
     }
 }

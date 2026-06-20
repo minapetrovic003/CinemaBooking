@@ -1,4 +1,5 @@
 ﻿using CinemaBooking.Application.DTOs.Halls;
+using CinemaBooking.Application.Services;   // <-- izmenjeno
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 

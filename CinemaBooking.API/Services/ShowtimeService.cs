@@ -1,4 +1,5 @@
 ﻿using CinemaBooking.Application.DTOs.Showtimes;
+using CinemaBooking.Application.Services;   // <-- izmenjeno iz CinemaBooking.API.Services
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 

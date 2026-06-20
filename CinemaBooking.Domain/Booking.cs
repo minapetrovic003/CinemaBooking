@@ -7,7 +7,7 @@ public class Booking
     public BookingStatus Status { get; set; } = BookingStatus.Pending;
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
-    public string UserId { get; set; } = string.Empty;  // string, ne long!
+    public string UserId { get; set; } = string.Empty;
     public long ShowtimeId { get; set; }
 
     public Showtime Showtime { get; set; } = null!;
@@ -19,6 +19,17 @@ public class Booking
         if (Status == BookingStatus.Confirmed || Status == BookingStatus.Pending)
         {
             Status = BookingStatus.Canceled;
+            return true;
+        }
+        return false;
+    }
+
+    // Poziva se pri skeniranju QR koda na ulazu u bioskop
+    public bool CheckIn()
+    {
+        if (Status == BookingStatus.Confirmed)
+        {
+            Status = BookingStatus.CheckedIn;
             return true;
         }
         return false;

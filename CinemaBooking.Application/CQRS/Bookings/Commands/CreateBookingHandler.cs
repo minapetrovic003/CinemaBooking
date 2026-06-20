@@ -67,17 +67,12 @@ public class CreateBookingHandler
             return (null, $"Seats not found in this hall: {string.Join(", ", notFound)}", 400);
 
         var bookedSeatIds = _uow.Bookings.GetBookedSeatIds(showtime.Id).ToList();
-
-        var alreadyBooked = seats
-            .Where(s => bookedSeatIds.Contains(s.Id))
-            .ToList();
+        var alreadyBooked = seats.Where(s => bookedSeatIds.Contains(s.Id)).ToList();
 
         if (alreadyBooked.Any())
-        {
             return (null,
                 $"Seats already booked: {string.Join(", ", alreadyBooked.Select(s => s.GetSeatLabel()))}",
                 409);
-        }
 
         var booking = new Booking
         {
@@ -121,8 +116,7 @@ public class CreateBookingHandler
         {
             _logger.LogWarning(ex,
                 "Could not release seat locks for user {UserId} after booking {BookingId}.",
-                user.Id,
-                booking.Id);
+                user.Id, booking.Id);
         }
 
         var dto = new BookingDto
@@ -149,16 +143,13 @@ public class CreateBookingHandler
         try
         {
             await _notificationService.SendBookingConfirmationAsync(
-                booking,
-                user,
-                cancellationToken);
+                booking, user, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "PDF/email failed for booking #{BookingId}, user {Email}.",
-                booking.Id,
-                user.Email);
+                "Booking confirmation email failed for booking #{BookingId}, user {Email}.",
+                booking.Id, user.Email);
         }
 
         return (dto, null, 201);

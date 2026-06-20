@@ -7,7 +7,8 @@ using Microsoft.Extensions.Options;
 using MimeKit;
 using MimeKit.Text;
 
-namespace CinemaBooking.API.Services.Notifications;
+// NAPOMENA: namespace je ispravljen — bio je CinemaBooking.API.Services.Notifications
+namespace CinemaBooking.Application.Notifications;
 
 public class NotificationService : INotificationService
 {
@@ -26,10 +27,19 @@ public class NotificationService : INotificationService
         _logger = logger;
     }
 
+    // Konvertuje UTC DateTime u Belgrade prikaz
     private static string ToBelgrade(DateTime utcTime)
     {
         var local = TimeZoneInfo.ConvertTimeFromUtc(utcTime, BelgradeZone);
         return local.ToString("dd.MM.yyyy HH:mm");
+    }
+
+    // Generiše QR kod URL koji vodi na stranicu za verifikaciju rezervacije
+    private string BuildQrImageUrl(long bookingId)
+    {
+        var verifyUrl = $"{_smtp.FrontendBaseUrl}/#verify/{bookingId}";
+        var encoded = Uri.EscapeDataString(verifyUrl);
+        return $"https://chart.googleapis.com/chart?cht=qr&chs=300x300&chl={encoded}&choe=UTF-8";
     }
 
     public async Task SendEmailAsync(
@@ -69,49 +79,74 @@ public class NotificationService : INotificationService
     {
         var seatRows = booking.BookingSeats
             .Select(bs =>
-                $"<tr><td>{bs.GetSeatLabel()}</td><td>{bs.Seat?.SeatType}</td><td style=\"text-align:right\">&euro;{bs.Price:F2}</td></tr>")
+                $"<tr><td style=\"padding:8px;border:1px solid #ddd\">{bs.GetSeatLabel()}</td>" +
+                $"<td style=\"padding:8px;border:1px solid #ddd\">{bs.Seat?.SeatType}</td>" +
+                $"<td style=\"padding:8px;border:1px solid #ddd;text-align:right\">&euro;{bs.Price:F2}</td></tr>")
             .ToList();
 
         var showtimeLocal = booking.Showtime?.StartTime is not null
             ? ToBelgrade(booking.Showtime.StartTime)
             : "N/A";
 
+        var qrImageUrl = BuildQrImageUrl(booking.Id);
+
         var html = $"""
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-              <h2 style="color:#1a1a2e">&#x2705; Booking Confirmation</h2>
-              <p>Dear <strong>{user.GetFullName()}</strong>,</p>
-              <p>Your booking has been successfully created. Here are your details:</p>
-              <table border="1" cellpadding="8" style="border-collapse:collapse;width:100%">
-                <tr style="background:#f0f0f0">
-                  <td><b>Movie</b></td>
-                  <td>{booking.Showtime?.Movie?.Title}</td>
-                </tr>
-                <tr>
-                  <td><b>Hall</b></td>
-                  <td>{booking.Showtime?.Hall?.Name}</td>
-                </tr>
-                <tr style="background:#f0f0f0">
-                  <td><b>Showtime</b></td>
-                  <td>{showtimeLocal} (Belgrade time)</td>
-                </tr>
-                <tr>
-                  <td><b>Status</b></td>
-                  <td><strong>{booking.Status}</strong></td>
-                </tr>
-              </table>
-              <h3>Seats</h3>
-              <table border="1" cellpadding="8" style="border-collapse:collapse;width:100%">
-                <tr style="background:#1a1a2e;color:white">
-                  <th>Seat</th><th>Type</th><th>Price</th>
-                </tr>
-                {string.Join("\n", seatRows)}
-              </table>
-              <p style="font-size:1.1em;margin-top:16px">
-                <strong>Total: &euro;{booking.TotalPrice:F2}</strong>
-              </p>
-              <p style="color:#555;font-size:0.9em">Please arrive at least 15 minutes before the showtime. Enjoy the film!</p>
-              <hr/>
-              <p style="color:#888;font-size:0.85em">CinemaBooking &mdash; this is an automated message, please do not reply.</p>
+            <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#222">
+              <div style="background:#1a0e0e;padding:24px;border-radius:8px 8px 0 0;text-align:center">
+                <h1 style="color:#CC8B86;margin:0;font-size:1.8rem">CinemaVerse</h1>
+                <p style="color:#b09a90;margin:6px 0 0">Booking Confirmation</p>
+              </div>
+              <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
+                <h2 style="color:#1a0e0e;margin-top:0">&#x2705; Your booking is confirmed!</h2>
+                <p>Dear <strong>{user.GetFullName()}</strong>,</p>
+                <p>Thank you for your booking. Below are your details:</p>
+
+                <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Movie</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{booking.Showtime?.Movie?.Title}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px;border:1px solid #ddd"><b>Hall</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{booking.Showtime?.Hall?.Name}</td>
+                  </tr>
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Showtime</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{showtimeLocal} (Belgrade time)</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px;border:1px solid #ddd"><b>Booking Status</b></td>
+                    <td style="padding:10px;border:1px solid #ddd"><strong style="color:#27ae60">{booking.Status}</strong></td>
+                  </tr>
+                </table>
+
+                <h3 style="color:#1a0e0e">Seat Details</h3>
+                <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
+                  <tr style="background:#1a0e0e;color:#fff">
+                    <th style="padding:10px;border:1px solid #444;text-align:left">Seat</th>
+                    <th style="padding:10px;border:1px solid #444;text-align:left">Type</th>
+                    <th style="padding:10px;border:1px solid #444;text-align:right">Price</th>
+                  </tr>
+                  {string.Join("\n", seatRows)}
+                  <tr style="background:#f7f0ed;font-weight:bold">
+                    <td colspan="2" style="padding:10px;border:1px solid #ddd">Total</td>
+                    <td style="padding:10px;border:1px solid #ddd;text-align:right">&euro;{booking.TotalPrice:F2}</td>
+                  </tr>
+                </table>
+
+                <div style="text-align:center;margin:28px 0">
+                  <p style="color:#555;margin-bottom:12px"><b>Show this QR code at the cinema entrance</b></p>
+                  <img src="{qrImageUrl}" alt="Booking QR Code" width="220" height="220"
+                       style="border:4px solid #CC8B86;border-radius:8px;padding:8px" />
+                  <p style="color:#888;font-size:0.8em;margin-top:8px">Booking #{booking.Id}</p>
+                </div>
+
+                <p style="color:#555;font-size:0.9em">Please arrive at least 15 minutes before the showtime.</p>
+                <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
+                <p style="color:#aaa;font-size:0.8em;text-align:center">
+                  CinemaVerse &mdash; this is an automated message, please do not reply.
+                </p>
+              </div>
             </div>
             """;
 
@@ -136,42 +171,51 @@ public class NotificationService : INotificationService
             : "N/A";
 
         var html = $"""
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-              <h2 style="color:#c0392b">&#x274C; Booking Cancelled</h2>
-              <p>Dear <strong>{user.GetFullName()}</strong>,</p>
-              <p>Your booking has been cancelled.</p>
-              <table border="1" cellpadding="8" style="border-collapse:collapse;width:100%">
-                <tr style="background:#f0f0f0">
-                  <td><b>Movie</b></td>
-                  <td>{booking.Showtime?.Movie?.Title}</td>
-                </tr>
-                <tr>
-                  <td><b>Hall</b></td>
-                  <td>{booking.Showtime?.Hall?.Name}</td>
-                </tr>
-                <tr style="background:#f0f0f0">
-                  <td><b>Showtime</b></td>
-                  <td>{showtimeLocal} (Belgrade time)</td>
-                </tr>
-                <tr>
-                  <td><b>Seats</b></td>
-                  <td>{seatLabels}</td>
-                </tr>
-                <tr style="background:#f0f0f0">
-                  <td><b>Booking Status</b></td>
-                  <td><strong style="color:#c0392b">Cancelled</strong></td>
-                </tr>
-              </table>
-              <p>We hope to see you again soon!</p>
-              <hr/>
-              <p style="color:#888;font-size:0.85em">CinemaBooking &mdash; this is an automated message, please do not reply.</p>
+            <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#222">
+              <div style="background:#1a0e0e;padding:24px;border-radius:8px 8px 0 0;text-align:center">
+                <h1 style="color:#CC8B86;margin:0;font-size:1.8rem">CinemaVerse</h1>
+                <p style="color:#b09a90;margin:6px 0 0">Booking Cancellation</p>
+              </div>
+              <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
+                <h2 style="color:#c0392b;margin-top:0">&#x274C; Your booking has been cancelled</h2>
+                <p>Dear <strong>{user.GetFullName()}</strong>,</p>
+                <p>The following booking has been successfully cancelled:</p>
+                <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Movie</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{booking.Showtime?.Movie?.Title}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px;border:1px solid #ddd"><b>Hall</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{booking.Showtime?.Hall?.Name}</td>
+                  </tr>
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Showtime</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{showtimeLocal} (Belgrade time)</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px;border:1px solid #ddd"><b>Seats</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{seatLabels}</td>
+                  </tr>
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Status</b></td>
+                    <td style="padding:10px;border:1px solid #ddd"><strong style="color:#c0392b">Cancelled</strong></td>
+                  </tr>
+                </table>
+                <p>If you did not request this cancellation, please contact us immediately.</p>
+                <p>We hope to see you again at CinemaVerse!</p>
+                <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
+                <p style="color:#aaa;font-size:0.8em;text-align:center">
+                  CinemaVerse &mdash; this is an automated message, please do not reply.
+                </p>
+              </div>
             </div>
             """;
 
         await SendEmailAsync(
             user.Email!,
             user.GetFullName(),
-            $"Booking #{booking.Id} has been cancelled",
+            $"Booking #{booking.Id} Cancelled — {booking.Showtime?.Movie?.Title}",
             html,
             cancellationToken);
     }
@@ -184,44 +228,53 @@ public class NotificationService : INotificationService
         var paymentDateLocal = ToBelgrade(payment.PaymentDate);
 
         var html = $"""
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-              <h2 style="color:#27ae60">&#x1F4B3; Payment Confirmation</h2>
-              <p>Dear <strong>{user.GetFullName()}</strong>,</p>
-              <p>Your payment has been successfully processed.</p>
-              <table border="1" cellpadding="8" style="border-collapse:collapse;width:100%">
-                <tr style="background:#f0f0f0">
-                  <td><b>Movie</b></td>
-                  <td>{payment.Booking?.Showtime?.Movie?.Title}</td>
-                </tr>
-                <tr>
-                  <td><b>Amount</b></td>
-                  <td><strong>&euro;{payment.Amount:F2}</strong></td>
-                </tr>
-                <tr style="background:#f0f0f0">
-                  <td><b>Payment Method</b></td>
-                  <td>{payment.Method}</td>
-                </tr>
-                <tr>
-                  <td><b>Payment Status</b></td>
-                  <td><strong style="color:#27ae60">{payment.Status}</strong></td>
-                </tr>
-                <tr style="background:#f0f0f0">
-                  <td><b>Payment Date</b></td>
-                  <td>{paymentDateLocal} (Belgrade time)</td>
-                </tr>
-              </table>
-              <hr/>
-              <p style="color:#888;font-size:0.85em">CinemaBooking &mdash; this is an automated message, please do not reply.</p>
+            <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#222">
+              <div style="background:#1a0e0e;padding:24px;border-radius:8px 8px 0 0;text-align:center">
+                <h1 style="color:#CC8B86;margin:0;font-size:1.8rem">CinemaVerse</h1>
+                <p style="color:#b09a90;margin:6px 0 0">Payment Confirmation</p>
+              </div>
+              <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
+                <h2 style="color:#27ae60;margin-top:0">&#x1F4B3; Payment Successful</h2>
+                <p>Dear <strong>{user.GetFullName()}</strong>,</p>
+                <p>Your payment has been successfully processed.</p>
+                <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Movie</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{payment.Booking?.Showtime?.Movie?.Title}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px;border:1px solid #ddd"><b>Amount Paid</b></td>
+                    <td style="padding:10px;border:1px solid #ddd"><strong>&euro;{payment.Amount:F2}</strong></td>
+                  </tr>
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Payment Method</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{payment.Method}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px;border:1px solid #ddd"><b>Status</b></td>
+                    <td style="padding:10px;border:1px solid #ddd"><strong style="color:#27ae60">{payment.Status}</strong></td>
+                  </tr>
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Payment Date</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{paymentDateLocal} (Belgrade time)</td>
+                  </tr>
+                </table>
+                <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
+                <p style="color:#aaa;font-size:0.8em;text-align:center">
+                  CinemaVerse &mdash; this is an automated message, please do not reply.
+                </p>
+              </div>
             </div>
             """;
 
         await SendEmailAsync(
             user.Email!,
             user.GetFullName(),
-            $"Payment Confirmation #{payment.Id}",
+            $"Payment Confirmation #{payment.Id} — CinemaVerse",
             html,
             cancellationToken);
     }
+
     public async Task SendRefundConfirmationAsync(
         Payment payment,
         ApplicationUser user,
@@ -230,34 +283,42 @@ public class NotificationService : INotificationService
         var processedDateLocal = ToBelgrade(payment.PaymentDate);
 
         var html = $"""
-            <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto">
-              <h2 style="color:#2980b9">&#x1F504; Refund Confirmation</h2>
-              <p>Dear <strong>{user.GetFullName()}</strong>,</p>
-              <p>Your refund for payment <strong>#{payment.Id}</strong> has been successfully processed.</p>
-              <table border="1" cellpadding="8" style="border-collapse:collapse;width:100%">
-                <tr style="background:#f0f0f0">
-                  <td><b>Refund Amount</b></td>
-                  <td><strong>&euro;{payment.Amount:F2}</strong></td>
-                </tr>
-                <tr>
-                  <td><b>Status</b></td>
-                  <td><strong style="color:#2980b9">Refunded</strong></td>
-                </tr>
-                <tr style="background:#f0f0f0">
-                  <td><b>Processed Date</b></td>
-                  <td>{processedDateLocal} (Belgrade time)</td>
-                </tr>
-              </table>
-              <p>Funds should be returned within 3-5 business days.</p>
-              <hr/>
-              <p style="color:#888;font-size:0.85em">CinemaBooking &mdash; this is an automated message, please do not reply.</p>
+            <div style="font-family:Arial,sans-serif;max-width:620px;margin:0 auto;color:#222">
+              <div style="background:#1a0e0e;padding:24px;border-radius:8px 8px 0 0;text-align:center">
+                <h1 style="color:#CC8B86;margin:0;font-size:1.8rem">CinemaVerse</h1>
+                <p style="color:#b09a90;margin:6px 0 0">Refund Confirmation</p>
+              </div>
+              <div style="background:#fff;padding:28px;border:1px solid #eee;border-top:none">
+                <h2 style="color:#2980b9;margin-top:0">&#x1F504; Refund Processed</h2>
+                <p>Dear <strong>{user.GetFullName()}</strong>,</p>
+                <p>Your refund for payment <strong>#{payment.Id}</strong> has been successfully processed.</p>
+                <table style="border-collapse:collapse;width:100%;margin-bottom:20px">
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Refund Amount</b></td>
+                    <td style="padding:10px;border:1px solid #ddd"><strong>&euro;{payment.Amount:F2}</strong></td>
+                  </tr>
+                  <tr>
+                    <td style="padding:10px;border:1px solid #ddd"><b>Status</b></td>
+                    <td style="padding:10px;border:1px solid #ddd"><strong style="color:#2980b9">Refunded</strong></td>
+                  </tr>
+                  <tr style="background:#f7f0ed">
+                    <td style="padding:10px;border:1px solid #ddd"><b>Processed Date</b></td>
+                    <td style="padding:10px;border:1px solid #ddd">{processedDateLocal} (Belgrade time)</td>
+                  </tr>
+                </table>
+                <p>Funds should be returned to your account within 3–5 business days.</p>
+                <hr style="border:none;border-top:1px solid #eee;margin:20px 0"/>
+                <p style="color:#aaa;font-size:0.8em;text-align:center">
+                  CinemaVerse &mdash; this is an automated message, please do not reply.
+                </p>
+              </div>
             </div>
             """;
 
         await SendEmailAsync(
             user.Email!,
             user.GetFullName(),
-            $"Refund Confirmation for payment #{payment.Id}",
+            $"Refund Confirmation — Payment #{payment.Id}",
             html,
             cancellationToken);
     }

@@ -1,9 +1,11 @@
 ﻿using CinemaBooking.Application.DTOs.Payments;
+using CinemaBooking.Application.Services;             // <-- izmenjeno
 using CinemaBooking.Application.Services.Notifications;
 using CinemaBooking.Domain;
 using CinemaBooking.Domain.Repositories;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Logging;
 
 namespace CinemaBooking.API.Services;
 
@@ -72,12 +74,10 @@ public class PaymentService : IPaymentService
         _uow.SaveChanges();
 
         var saved = _uow.Payments.GetByIdWithDetails(payment.Id);
-
         var user = saved?.Booking is not null
             ? _userManager.Users.FirstOrDefault(u => u.Id == saved.Booking.UserId)
             : null;
 
-        // Slanje emaila: ako SMTP padne, NE obaramo payment
         if (saved is not null && user is not null)
         {
             try
@@ -87,18 +87,16 @@ public class PaymentService : IPaymentService
             catch (Exception ex)
             {
                 _logger.LogError(ex,
-                    "Payment confirmation email nije poslan za payment #{PaymentId}, korisnik {Email}",
+                    "Payment confirmation email failed for payment #{PaymentId}, user {Email}.",
                     saved.Id, user.Email);
             }
         }
-
 
         return (MapToDto(saved!, user), null, 201);
     }
 
     public async Task<(bool success, string? errorMessage)> RefundAsync(long id)
     {
-        // Koristimo GetByIdWithDetails da imamo Booking.UserId za email
         var payment = _uow.Payments.GetByIdWithDetails(id);
         if (payment is null) return (false, null);
 
@@ -107,7 +105,6 @@ public class PaymentService : IPaymentService
 
         _uow.SaveChanges();
 
-        // Slanje emaila: ako SMTP padne, NE obaramo refund
         try
         {
             var user = payment.Booking is not null
@@ -118,15 +115,16 @@ public class PaymentService : IPaymentService
                 await _notificationService.SendRefundConfirmationAsync(payment, user);
             else
                 _logger.LogWarning(
-                    "Korisnik nije pronađen za payment #{PaymentId} — refund email nije poslan.",
+                    "User not found for payment #{PaymentId} — refund email not sent.",
                     payment.Id);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex,
-                "Refund email nije poslan za payment #{PaymentId}",
+                "Refund email failed for payment #{PaymentId}.",
                 payment.Id);
         }
+
         return (true, null);
     }
 
