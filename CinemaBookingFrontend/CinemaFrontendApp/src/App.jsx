@@ -660,11 +660,11 @@ function VerifyPage({ bookingId, user, token, toast, onBack }) {
               ))}
             </div>
 
-            {isAdmin && booking.status === "Confirmed" && !checkedIn && (
-              <button className="btn-checkin" onClick={handleCheckIn} disabled={checkingIn}>
-                {checkingIn ? "Checking in..." : "✓ Check In Guest"}
-              </button>
-            )}
+            {user && booking.status === "Confirmed" && !checkedIn && (
+  <button className="btn-checkin" onClick={handleCheckIn} disabled={checkingIn}>
+    {checkingIn ? "Checking in..." : isAdmin ? "✓ Check In Guest" : "✓ Check In"}
+  </button>
+)}
 
             {(booking.status === "CheckedIn" || checkedIn) && (
               <div style={{ marginTop: "1.5rem", padding: "1rem", background: "rgba(39,174,96,0.1)", border: "1px solid rgba(39,174,96,0.3)", borderRadius: "10px", color: "#27ae60" }}>
@@ -678,11 +678,6 @@ function VerifyPage({ bookingId, user, token, toast, onBack }) {
               </div>
             )}
 
-            {!isAdmin && booking.status === "Confirmed" && (
-              <p style={{ color: "var(--text-muted)", fontSize: "0.82rem", marginTop: "1rem" }}>
-                Admin login required to check in this guest.
-              </p>
-            )}
           </>
         )}
       </div>
@@ -1062,7 +1057,7 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
           <div className="modal-title">
             {step === "seats" && "Choose Your Seats"}
             {step === "confirm" && "Confirm Booking"}
-            {step === "success" && "Booking Confirmed!"}
+            {step === "success" && "Booking Created — Awaiting Payment"}
           </div>
           <button className="modal-close" onClick={handleClose}>×</button>
         </div>
@@ -1241,9 +1236,9 @@ function MyBookingsPage({ user, token, toast }) {
           <div className="booking-seats">
             {b.seats?.map(s => <span key={s.seatLabel} className="seat-tag">{s.seatLabel}</span>)}
           </div>
-          {(b.status === "Confirmed") && new Date(b.showtimeStart) > new Date() && (
-            <button className="btn-cancel" style={{ marginTop: "0.75rem" }} onClick={() => cancel(b.id)}>Cancel booking</button>
-          )}
+          {(b.status === "Confirmed" || b.status === "Pending") && new Date(b.showtimeStart) > new Date() && (
+  <button className="btn-cancel" style={{ marginTop: "0.75rem" }} onClick={() => cancel(b.id)}>Cancel booking</button>
+)}
         </div>
       ))}
     </div>
@@ -1415,7 +1410,7 @@ function AdminPage({ token, toast }) {
     totalBookings: bookings.length,
     confirmed: bookings.filter(b => b.status === "Confirmed").length,
     checkedIn: bookings.filter(b => b.status === "CheckedIn").length,
-    revenue: payments.filter(p => p.status === "Paid").reduce((s, p) => s + Number(p.amount || 0), 0),
+    revenue: payments.filter(p => p.status === "Completed").reduce((s, p) => s + Number(p.amount || 0), 0),
     movies: movies.length,
     halls: halls.length,
   };
@@ -1460,15 +1455,12 @@ function AdminPage({ token, toast }) {
                       <td style={{ color: "var(--rose)", fontWeight: 600 }}>{formatEur(b.totalPrice)}</td>
                       <td><span className={`status-badge status-${(b.status || "confirmed").toLowerCase()}`}>{b.status || "Confirmed"}</span></td>
                       <td>
-                        {b.status === "Confirmed" && (
-                          <button
-                            className="btn-primary"
-                            style={{ fontSize: "0.75rem", padding: "0.3rem 0.7rem" }}
-                            onClick={() => processPayment(b)}
-                          >
-                            💳 Pay
-                          </button>
-                        )}
+                        {b.status === "Pending" && (
+  <button className="btn-primary" style={{ fontSize: "0.75rem", padding: "0.3rem 0.7rem" }}
+    onClick={() => processPayment(b)}>
+    💳 Pay
+  </button>
+)}
                       </td>
                     </tr>
                   ))}
