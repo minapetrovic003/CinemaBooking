@@ -72,6 +72,7 @@ builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IShowtimeService, ShowtimeService>();
 //builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<ISeatLockService, SeatLockService>();  // ← DODAJ OVU LINIJU
 
 builder.Services.AddIdentityCore<ApplicationUser>(opt =>
 {
