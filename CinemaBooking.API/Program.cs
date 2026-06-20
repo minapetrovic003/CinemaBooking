@@ -19,6 +19,7 @@ using CinemaBooking.Application.CQRS.Bookings.Handlers;
 using CinemaBooking.Application.Notifications;
 using CinemaBooking.Application.Services;
 using CinemaBooking.API.Extensions;
+using CinemaBooking.Application.CQRS.Bookings.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -42,6 +43,7 @@ builder.Services.AddMediatR(cfg =>
 });
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateBookingCommandValidator>();
 
 builder.Services.AddDbContext<CinemaBookingContext>(options =>
 {

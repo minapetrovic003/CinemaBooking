@@ -1,6 +1,8 @@
-﻿using CinemaBooking.Infrastructure;
+﻿// CinemaBooking.API/Extensions/IdentitySeedExtensions.cs
+using CinemaBooking.Infrastructure;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.EntityFrameworkCore;
 
 namespace CinemaBooking.API.Extensions
 {
@@ -12,8 +14,11 @@ namespace CinemaBooking.API.Extensions
 
             var context = scope.ServiceProvider.GetRequiredService<CinemaBookingContext>();
 
-            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+            // ✅ FIX #1: Primijeni migracije automatski pri pokretanju.
+            // Bez ovoga Identity tabele ne postoje i admin se ne može kreirati.
+            await context.Database.MigrateAsync();
 
+            var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
             var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
 
             foreach (var roleName in new[] { "Admin", "User" })
@@ -33,13 +38,17 @@ namespace CinemaBooking.API.Extensions
                     Email = adminEmail,
                     UserName = adminEmail
                 };
+
                 var result = await userManager.CreateAsync(admin, "Admin!123");
+
                 if (!result.Succeeded)
                 {
-                    throw new InvalidOperationException($"Admin user seed failed.");
+                    // ✅ FIX: Log specifičnih grešaka umjesto generalne poruke
+                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
+                    throw new InvalidOperationException($"Admin user seed failed: {errors}");
                 }
 
-                if(!await userManager.IsInRoleAsync(admin, "Admin"))
+                if (!await userManager.IsInRoleAsync(admin, "Admin"))
                 {
                     await userManager.AddToRoleAsync(admin, "Admin");
                 }
