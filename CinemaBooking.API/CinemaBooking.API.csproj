@@ -8,22 +8,24 @@
   </PropertyGroup>
 
 	<ItemGroup>
+		<PackageReference Include="FluentValidation" Version="12.1.1" />
+		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
 		<PackageReference Include="MailKit" Version="4.17.0" />
-		<PackageReference Include="MediatR" Version="12.4.1" />
+		<PackageReference Include="MediatR" Version="14.1.0" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.4" />
-		<PackageReference Include="FluentValidation" Version="11.11.0" />
-		<PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="11.11.0" />
 		<PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.4" />
 		<PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.0">
 			<IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
 			<PrivateAssets>all</PrivateAssets>
 		</PackageReference>
 		<PackageReference Include="Scalar.AspNetCore" Version="2.13.20" />
+		
 	</ItemGroup>
 
 	<ItemGroup>
-		<ProjectReference Include="..\CinemaBooking.Domain\CinemaBooking.Domain.csproj" />
-		<ProjectReference Include="..\CinemaBooking.Infrastructure\CinemaBooking.Infrastructure.csproj" />
+	  <ProjectReference Include="..\CinemaBooking.Application\CinemaBooking.Application.csproj" />
+	  <ProjectReference Include="..\CinemaBooking.Domain\CinemaBooking.Domain.csproj" />
+	  <ProjectReference Include="..\CinemaBooking.Infrastructure\CinemaBooking.Infrastructure.csproj" />
 	</ItemGroup>
 
 </Project>

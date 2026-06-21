@@ -1,5 +1,5 @@
-﻿using CinemaBooking.API.DTOs.Notifications;
-using CinemaBooking.API.Services.Notifications;
+﻿using CinemaBooking.Domain.DTOs.Notifications;
+using CinemaBooking.Application.Notifications;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -40,7 +40,7 @@ public class NotificationsController : ControllerBase
                 request.ToName,
                 request.Subject,
                 $"<p>{request.Body}</p>",
-                cancellationToken);
+                cancellationToken: cancellationToken);
 
             return Ok(new { Message = $"Test email uspješno poslan na {request.ToEmail}." });
         }

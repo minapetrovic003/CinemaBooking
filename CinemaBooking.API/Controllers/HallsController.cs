@@ -1,5 +1,5 @@
-﻿using CinemaBooking.API.DTOs.Halls;
-using CinemaBooking.API.Services;
+﻿using CinemaBooking.Domain.DTOs.Halls;
+using CinemaBooking.Application.Services;    // <-- izmenjeno
 using FluentValidation;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;

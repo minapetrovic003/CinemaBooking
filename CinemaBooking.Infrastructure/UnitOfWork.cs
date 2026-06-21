@@ -1,5 +1,5 @@
-﻿using CinemaBooking.Domain;
-using CinemaBooking.Domain.Repositories;
+﻿using CinemaBooking.Domain.Models;
+using CinemaBooking.Application.Repositories;
 using CinemaBooking.Infrastructure.Repositories;
 
 namespace CinemaBooking.Infrastructure;
@@ -24,7 +24,7 @@ public class UnitOfWork : IUnitOfWork
     }
 
     public IMovieRepository Movies =>
-        _movies ??= new MovieRepository(_context);
+        _movies ??= new MovieRepository(_context);//lazy initialization
 
     public IHallRepository Halls =>
         _halls ??= new HallRepository(_context);
