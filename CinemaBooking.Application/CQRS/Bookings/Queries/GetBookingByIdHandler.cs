@@ -1,38 +1,36 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Queries;
+using CinemaBooking.Application.Repositories;
 using CinemaBooking.Domain.DTOs.Bookings;
-using CinemaBooking.Domain.Repositories;
-using CinemaBooking.Infrastructure.Identity;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 
 namespace CinemaBooking.Application.CQRS.Bookings.Handlers;
 
 public class GetBookingByIdHandler : IRequestHandler<GetBookingByIdQuery, BookingDto?>
 {
     private readonly IUnitOfWork _uow;
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IUserRepository _userRepository;
 
-    public GetBookingByIdHandler(IUnitOfWork uow, UserManager<ApplicationUser> userManager)
+    public GetBookingByIdHandler(IUnitOfWork uow, IUserRepository userRepository)
     {
         _uow = uow;
-        _userManager = userManager;
+        _userRepository = userRepository;
     }
 
-    public Task<BookingDto?> Handle(GetBookingByIdQuery request, CancellationToken cancellationToken)
+    public async Task<BookingDto?> Handle(GetBookingByIdQuery request, CancellationToken cancellationToken)
     {
         var booking = _uow.Bookings.GetByIdWithDetails(request.Id);
         if (booking is null)
-            return Task.FromResult<BookingDto?>(null);
+            return null;
 
-        var user = _userManager.Users.FirstOrDefault(u => u.Id == booking.UserId);
+        var user = await _userRepository.FindByIdAsync(booking.UserId);
 
-        var dto = new BookingDto
+        return new BookingDto
         {
             Id = booking.Id,
             TotalPrice = booking.TotalPrice,
             Status = booking.Status.ToString(),
             CreatedAt = booking.CreatedAt,
-            UserFullName = user?.GetFullName() ?? string.Empty,
+            UserFullName = user?.FullName ?? string.Empty,
             UserEmail = user?.Email ?? string.Empty,
             MovieTitle = booking.Showtime?.Movie?.Title ?? string.Empty,
             MovieGenre = booking.Showtime?.Movie?.Genre ?? string.Empty,
@@ -46,7 +44,5 @@ public class GetBookingByIdHandler : IRequestHandler<GetBookingByIdQuery, Bookin
                 Price = bs.Price
             }).ToList() ?? new List<BookingSeatDto>()
         };
-
-        return Task.FromResult<BookingDto?>(dto);
     }
 }

@@ -1,6 +1,6 @@
 ﻿using CinemaBooking.Domain.Models;
 
-namespace CinemaBooking.Domain.Repositories;
+namespace CinemaBooking.Application.Repositories;
 
 public interface IUnitOfWork : IDisposable
 {
@@ -11,8 +11,6 @@ public interface IUnitOfWork : IDisposable
     IPaymentRepository Payments { get; }
     IRepository<Seat> Seats { get; }
     IRepository<BookingSeat> BookingSeats { get; }
-
-    //SeatLook
     ISeatLockRepository SeatLocks { get; }
 
     int SaveChanges();

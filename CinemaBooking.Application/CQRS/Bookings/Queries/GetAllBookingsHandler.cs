@@ -1,36 +1,33 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Queries;
+using CinemaBooking.Application.Repositories;
 using CinemaBooking.Domain.DTOs.Bookings;
 using CinemaBooking.Domain.DTOs.Common;
+using CinemaBooking.Domain.DTOs.Users;
 using CinemaBooking.Domain.Models;
-using CinemaBooking.Domain.Repositories;
-using CinemaBooking.Infrastructure.Identity;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 
 namespace CinemaBooking.Application.CQRS.Bookings.Handlers;
 
 public class GetAllBookingsHandler : IRequestHandler<GetAllBookingsQuery, PagedResult<BookingDto>>
 {
     private readonly IUnitOfWork _uow;
-    private readonly UserManager<ApplicationUser> _userManager;
+    private readonly IUserRepository _userRepository;
 
-    public GetAllBookingsHandler(IUnitOfWork uow, UserManager<ApplicationUser> userManager)
+    public GetAllBookingsHandler(IUnitOfWork uow, IUserRepository userRepository)
     {
         _uow = uow;
-        _userManager = userManager;
+        _userRepository = userRepository;
     }
 
-    public Task<PagedResult<BookingDto>> Handle(GetAllBookingsQuery request, CancellationToken cancellationToken)
+    public async Task<PagedResult<BookingDto>> Handle(
+        GetAllBookingsQuery request, CancellationToken cancellationToken)
     {
         var bookings = _uow.Bookings
             .Search(request.UserEmail, request.Status, request.FromDate, request.ToDate)
             .ToList();
 
-        var userIds = bookings.Select(b => b.UserId).Distinct().ToList();
-
-        var users = _userManager.Users
-            .Where(u => userIds.Contains(u.Id))
-            .ToDictionary(u => u.Id);
+        var userIds = bookings.Select(b => b.UserId).Distinct();
+        var users = await _userRepository.FindByIdsAsync(userIds);
 
         var items = bookings
             .Skip((request.Page - 1) * request.PageSize)
@@ -46,16 +43,16 @@ public class GetAllBookingsHandler : IRequestHandler<GetAllBookingsQuery, PagedR
             TotalCount = bookings.Count
         };
 
-        return Task.FromResult(result);
+        return result;
     }
 
-    private static BookingDto MapToDto(Booking b, ApplicationUser? user) => new()
+    private static BookingDto MapToDto(Booking b, UserInfo? user) => new()
     {
         Id = b.Id,
         TotalPrice = b.TotalPrice,
         Status = b.Status.ToString(),
         CreatedAt = b.CreatedAt,
-        UserFullName = user?.GetFullName() ?? string.Empty,
+        UserFullName = user?.FullName ?? string.Empty,
         UserEmail = user?.Email ?? string.Empty,
         MovieTitle = b.Showtime?.Movie?.Title ?? string.Empty,
         MovieGenre = b.Showtime?.Movie?.Genre ?? string.Empty,

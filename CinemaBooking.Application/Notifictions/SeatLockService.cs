@@ -1,7 +1,7 @@
 ﻿using CinemaBooking.Domain.DTOs.SeatLocks;
 using CinemaBooking.Application.Services;
 using CinemaBooking.Domain.Models;
-using CinemaBooking.Domain.Repositories;
+using CinemaBooking.Application.Repositories;
 using Microsoft.Extensions.Logging;
 
 namespace CinemaBooking.Application.Notifications;

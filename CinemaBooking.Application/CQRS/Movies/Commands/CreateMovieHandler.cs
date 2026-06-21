@@ -1,7 +1,7 @@
 ﻿using CinemaBooking.Application.CQRS.Movies.Commands;
 using CinemaBooking.Domain.DTOs.Movies;
 using CinemaBooking.Domain.Models;
-using CinemaBooking.Domain.Repositories;
+using CinemaBooking.Application.Repositories;
 using MediatR;
 
 namespace CinemaBooking.Application.CQRS.Movies.Handlers;

@@ -1,11 +1,8 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
+using CinemaBooking.Application.Repositories;
 using CinemaBooking.Domain.DTOs.Bookings;
-using CinemaBooking.Application.Notifications;
 using CinemaBooking.Domain.Models;
-using CinemaBooking.Domain.Repositories;
-using CinemaBooking.Infrastructure.Identity;
 using MediatR;
-using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 
@@ -15,29 +12,23 @@ public class CreateBookingHandler
     : IRequestHandler<CreateBookingCommand, (BookingDto? Dto, string? ErrorMessage, int StatusCode)>
 {
     private readonly IUnitOfWork _uow;
-    private readonly UserManager<ApplicationUser> _userManager;
-    private readonly INotificationService _notificationService;
-    private readonly IPdfTicketService _pdfTicketService;
+    private readonly IUserRepository _userRepository;
     private readonly ILogger<CreateBookingHandler> _logger;
 
     public CreateBookingHandler(
         IUnitOfWork uow,
-        UserManager<ApplicationUser> userManager,
-        INotificationService notificationService,
-        IPdfTicketService pdfTicketService,
+        IUserRepository userRepository,
         ILogger<CreateBookingHandler> logger)
     {
         _uow = uow;
-        _userManager = userManager;
-        _notificationService = notificationService;
-        _pdfTicketService = pdfTicketService;
+        _userRepository = userRepository;
         _logger = logger;
     }
 
     public async Task<(BookingDto? Dto, string? ErrorMessage, int StatusCode)> Handle(
         CreateBookingCommand request, CancellationToken cancellationToken)
     {
-        var user = await _userManager.FindByEmailAsync(request.UserEmail);
+        var user = await _userRepository.FindByEmailAsync(request.UserEmail);
         if (user is null)
             return (null, $"User with email '{request.UserEmail}' not found.", 404);
 
@@ -77,11 +68,12 @@ public class CreateBookingHandler
                 $"Seats already booked: {string.Join(", ", alreadyBooked.Select(s => s.GetSeatLabel()))}",
                 409);
 
+        // Booking se kreira kao Pending — potvrđuje se tek nakon plaćanja
         var booking = new Booking
         {
             UserId = user.Id,
             ShowtimeId = showtime.Id,
-            Status = BookingStatus.Confirmed,
+            Status = BookingStatus.Pending,
             CreatedAt = DateTime.UtcNow,
             BookingSeats = seats.Select(s => new BookingSeat
             {
@@ -92,7 +84,6 @@ public class CreateBookingHandler
         };
 
         booking.CalculateTotalPrice();
-        // Navigation property postavljen da PDF/email servisi mogu čitati detalje
         booking.Showtime = showtime;
 
         _uow.Bookings.Add(booking);
@@ -111,6 +102,7 @@ public class CreateBookingHandler
                 409);
         }
 
+        // Oslobodi lock-ove nakon rezervacije
         try
         {
             _uow.SeatLocks.ReleaseLocksForUser(showtime.Id, user.Id);
@@ -129,8 +121,8 @@ public class CreateBookingHandler
             TotalPrice = booking.TotalPrice,
             Status = booking.Status.ToString(),
             CreatedAt = booking.CreatedAt,
-            UserFullName = user.GetFullName(),
-            UserEmail = user.Email ?? string.Empty,
+            UserFullName = user.FullName,
+            UserEmail = user.Email,
             MovieTitle = showtime.Movie.Title,
             MovieGenre = showtime.Movie.Genre,
             MovieDurationMinutes = showtime.Movie.DurationMinutes,
@@ -144,20 +136,10 @@ public class CreateBookingHandler
             }).ToList()
         };
 
-        // Generisanje PDF karte i slanje emaila
-        // Ako PDF ili SMTP padne — booking ostaje potvrđen
-        try
-        {
-            var pdfTicket = _pdfTicketService.GenerateTicket(booking, user);
-            await _notificationService.SendBookingConfirmationAsync(
-                booking, user, pdfTicket, cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex,
-                "PDF/email failed for booking #{BookingId}, user {Email}.",
-                booking.Id, user.Email);
-        }
+        // Email se NE šalje ovdje — šalje se tek nakon plaćanja (PaymentService)
+        _logger.LogInformation(
+            "Booking #{BookingId} created as Pending for user {Email}. Awaiting payment.",
+            booking.Id, user.Email);
 
         return (dto, null, 201);
     }

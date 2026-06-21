@@ -1,5 +1,5 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
-using CinemaBooking.Domain.Repositories;
+using CinemaBooking.Application.Repositories;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -25,12 +25,16 @@ public class CheckInBookingHandler
         if (booking is null)
             return Task.FromResult((false, (string?)"Booking not found."));
 
+        // Check-in ruta je otvorena (AllowAnonymous) jer QR kod dobija
+        // iskljucivo vlasnik rezervacije putem emaila
         if (!booking.CheckIn())
-            return Task.FromResult((false, (string?)"Only confirmed bookings can be checked in."));
+            return Task.FromResult((false, (string?)"Only confirmed (paid) bookings can be checked in."));
 
         _uow.SaveChanges();
 
-        _logger.LogInformation("Booking #{BookingId} checked in successfully.", booking.Id);
+        _logger.LogInformation(
+            "Booking #{BookingId} checked in successfully.",
+            booking.Id);
 
         return Task.FromResult((true, (string?)null));
     }

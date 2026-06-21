@@ -1,5 +1,5 @@
 ﻿using CinemaBooking.Domain.Models;
-using CinemaBooking.Domain.Repositories;
+using CinemaBooking.Application.Repositories;
 using CinemaBooking.Infrastructure.Repositories;
 
 namespace CinemaBooking.Infrastructure;

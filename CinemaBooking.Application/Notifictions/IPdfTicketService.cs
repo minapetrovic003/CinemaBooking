@@ -1,9 +1,9 @@
-﻿using CinemaBooking.Domain.Models;
-using CinemaBooking.Infrastructure.Identity;
+﻿using CinemaBooking.Domain.DTOs.Users;
+using CinemaBooking.Domain.Models;
 
 namespace CinemaBooking.Application.Notifications;
 
 public interface IPdfTicketService
 {
-    byte[] GenerateTicket(Booking booking, ApplicationUser user);
+    byte[] GenerateTicket(Booking booking, UserInfo user);
 }

@@ -14,9 +14,31 @@ public class Booking
     public ICollection<BookingSeat> BookingSeats { get; set; } = new List<BookingSeat>();
     public Payment? Payment { get; set; }
 
+    public bool Confirm()
+    {
+        if (Status == BookingStatus.Pending)
+        {
+            Status = BookingStatus.Confirmed;
+            return true;
+        }
+        return false;
+    }
+
+    // Cancel je moguc samo za neplacene (Pending) rezervacije
     public bool Cancel()
     {
-        if (Status == BookingStatus.Confirmed || Status == BookingStatus.Pending)
+        if (Status == BookingStatus.Pending)
+        {
+            Status = BookingStatus.Canceled;
+            return true;
+        }
+        return false;
+    }
+
+    // Otkazivanje nakon refunda - radi za Confirmed i CheckedIn
+    public bool CancelAfterRefund()
+    {
+        if (Status == BookingStatus.Confirmed || Status == BookingStatus.CheckedIn)
         {
             Status = BookingStatus.Canceled;
             return true;

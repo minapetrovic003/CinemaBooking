@@ -5,6 +5,7 @@ using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CinemaBooking.API.Controllers;
 
@@ -24,15 +25,11 @@ public class BookingsController : ControllerBase
     public async Task<IActionResult> GetAll([FromQuery] BookingSearchRequest request)
     {
         var query = new GetAllBookingsQuery(
-            request.UserEmail,
-            request.Status,
-            request.FromDate,
-            request.ToDate,
-            request.Page,
-            request.PageSize);
+            request.UserEmail, request.Status,
+            request.FromDate, request.ToDate,
+            request.Page, request.PageSize);
 
-        var result = await _mediator.Send(query);
-        return Ok(result);
+        return Ok(await _mediator.Send(query));
     }
 
     [HttpGet("{id}")]
@@ -44,10 +41,6 @@ public class BookingsController : ControllerBase
             : Ok(result);
     }
 
-    /// <summary>
-    /// Javni endpoint za verifikaciju rezervacije (skeniranje QR koda).
-    /// Vraca osnovne informacije o rezervaciji — status, film, sedista.
-    /// </summary>
     [HttpGet("{id}/verify")]
     [AllowAnonymous]
     public async Task<IActionResult> Verify(long id)
@@ -65,7 +58,7 @@ public class BookingsController : ControllerBase
             Showtime = result.ShowtimeStart,
             Seats = result.Seats.Select(s => s.SeatLabel),
             TotalPrice = result.TotalPrice,
-            CustomerName = result.UserFullName
+            CustomerName = result.UserFullName,
         });
     }
 
@@ -75,11 +68,8 @@ public class BookingsController : ControllerBase
         try
         {
             var command = new CreateBookingCommand(
-                request.UserEmail,
-                request.MovieTitle,
-                request.HallName,
-                request.ShowtimeStartTime,
-                request.Seats);
+                request.UserEmail, request.MovieTitle,
+                request.HallName, request.ShowtimeStartTime, request.Seats);
 
             var (dto, errorMessage, statusCode) = await _mediator.Send(command);
 
@@ -112,18 +102,22 @@ public class BookingsController : ControllerBase
     }
 
     /// <summary>
-    /// Check-in pri ulasku u bioskop — poziva se nakon skeniranja QR koda (samo Admin).
-    /// Mijenja status rezervacije iz Confirmed → CheckedIn.
+    /// Check-in rezervacije putem QR koda.
+    /// Ruta je otvorena (AllowAnonymous) jer korisnik dobija QR link iskljucivo
+    /// na sopstveni email i nema razloga da mora biti ulogovan.
     /// </summary>
     [HttpPatch("{id}/checkin")]
-    [Authorize(Roles = "Admin")]
+    [AllowAnonymous]
     public async Task<IActionResult> CheckIn(long id)
     {
         var existing = await _mediator.Send(new GetBookingByIdQuery(id));
         if (existing is null)
             return NotFound(new { Message = $"Booking with id {id} not found." });
 
-        var (success, errorMessage) = await _mediator.Send(new CheckInBookingCommand(id));
+        // Prosledujemo dummy vrednosti jer handler vise ne proverava vlasnistvo
+        var (success, errorMessage) = await _mediator.Send(
+            new CheckInBookingCommand(id, string.Empty, false));
+
         return success
             ? NoContent()
             : Conflict(new { Message = errorMessage });

@@ -1,5 +1,5 @@
 ﻿using System.Linq.Expressions;
-using CinemaBooking.Domain.Repositories;
+using CinemaBooking.Application.Repositories;
 using Microsoft.EntityFrameworkCore;
 
 namespace CinemaBooking.Infrastructure.Repositories;
