@@ -13,6 +13,7 @@ namespace CinemaBooking.API.Extensions
             using var scope = app.Services.CreateScope();
 
             var context = scope.ServiceProvider.GetRequiredService<CinemaBookingContext>();
+            await context.Database.MigrateAsync();
 
             // ✅ FIX #1: Primijeni migracije automatski pri pokretanju.
             // Bez ovoga Identity tabele ne postoje i admin se ne može kreirati.
@@ -23,11 +24,20 @@ namespace CinemaBooking.API.Extensions
 
             foreach (var roleName in new[] { "Admin", "User" })
             {
-                if (await roleManager.FindByNameAsync(roleName) is null)
-                    await roleManager.CreateAsync(new IdentityRole(roleName));
+                if (!await roleManager.RoleExistsAsync(roleName))
+                {
+                    var roleResult = await roleManager.CreateAsync(new IdentityRole(roleName));
+                    if (!roleResult.Succeeded)
+                    {
+                        var errors = string.Join(", ", roleResult.Errors.Select(e => e.Description));
+                        throw new InvalidOperationException($"Seed role '{roleName}' failed: {errors}");
+                    }
+                }
             }
 
-            var adminEmail = "admin@cinema.com";
+            const string adminEmail = "admin@cinema.com";
+            const string adminPassword = "Admin!123";
+
             var admin = await userManager.FindByEmailAsync(adminEmail);
             if (admin is null)
             {
@@ -36,19 +46,16 @@ namespace CinemaBooking.API.Extensions
                     FirstName = "Admin",
                     LastName = "Cinema",
                     Email = adminEmail,
-                    UserName = adminEmail
+                    UserName = adminEmail,
+                    EmailConfirmed = true
                 };
-
                 var result = await userManager.CreateAsync(admin, "Admin!123");
-
                 if (!result.Succeeded)
                 {
-                    // ✅ FIX: Log specifičnih grešaka umjesto generalne poruke
-                    var errors = string.Join(", ", result.Errors.Select(e => e.Description));
-                    throw new InvalidOperationException($"Admin user seed failed: {errors}");
+                    throw new InvalidOperationException($"Admin user seed failed.");
                 }
 
-                if (!await userManager.IsInRoleAsync(admin, "Admin"))
+                if(!await userManager.IsInRoleAsync(admin, "Admin"))
                 {
                     await userManager.AddToRoleAsync(admin, "Admin");
                 }
