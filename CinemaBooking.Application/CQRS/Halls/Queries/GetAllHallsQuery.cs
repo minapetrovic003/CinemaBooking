@@ -3,5 +3,5 @@ using MediatR;
 
 namespace CinemaBooking.Application.CQRS.Halls.Queries
 {
-    public record GetAllHallsQuery() : IRequest<List<HallDto>>;
+    public record GetAllHallsQuery() : IRequest<IEnumerable<HallDto>>;
 }

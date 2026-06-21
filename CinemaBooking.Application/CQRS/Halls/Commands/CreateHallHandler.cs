@@ -17,16 +17,13 @@ namespace CinemaBooking.Application.CQRS.Halls.Commands
         : IRequestHandler<CreateHallCommand, (HallDto? Dto, string? ErrorMessage, int StatusCode)>
     {
         private readonly IUnitOfWork _uow;
-        private readonly IUserRepository _userRepository;
         private readonly ILogger<CreateHallHandler> _logger;
 
         public CreateHallHandler(
             IUnitOfWork uow,
-            IUserRepository userRepository,
             ILogger<CreateHallHandler> logger)
         {
             _uow = uow;
-            _userRepository = userRepository;
             _logger = logger;
         }
 
