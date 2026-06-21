@@ -1,5 +1,5 @@
-﻿using CinemaBooking.API.DTOs.Payments;
-using CinemaBooking.API.Services;
+﻿using CinemaBooking.Domain.DTOs.Payments;
+using CinemaBooking.Application.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -14,6 +14,10 @@ public class PaymentsController : ControllerBase
 
     public PaymentsController(IPaymentService paymentService)
         => _paymentService = paymentService;
+
+    [HttpGet]
+    [Authorize(Roles = "Admin")]
+    public IActionResult GetAll() => Ok(_paymentService.GetAll());
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(long id)
@@ -40,6 +44,7 @@ public class PaymentsController : ControllerBase
     }
 
     [HttpPatch("{id}/refund")]
+    [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Refund(long id)
     {
         if (await _paymentService.GetByIdAsync(id) is null)

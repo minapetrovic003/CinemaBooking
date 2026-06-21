@@ -1,11 +1,11 @@
 ﻿using CinemaBooking.API.Autentification;
-using CinemaBooking.API.DTOs.Auth;
-using CinemaBooking.API.Services.Auth;
+using CinemaBooking.Domain.DTOs.Auth;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Options;
+using CinemaBooking.API.Services;
 
 namespace CinemaBooking.API.Controllers;
 
@@ -38,34 +38,41 @@ public class AuthController : ControllerBase
         if (existing is not null)
             return Conflict(new { Message = "User with this email already exists." });
 
-        var allowedRoles = new[] { "Admin", "User" };
-        var role = allowedRoles.FirstOrDefault(r =>
-            string.Equals(r, request.Role, StringComparison.OrdinalIgnoreCase)) ?? "User";
-
-        if (!await _roleManager.RoleExistsAsync(role))
-            return StatusCode(500, new { Message = $"Role '{role}' is not configured in the database." });
-
         var user = new ApplicationUser
         {
             FirstName = request.FirstName,
             LastName = request.LastName,
             Email = request.Email,
-            UserName = request.Email,
-            EmailConfirmed = true
+            UserName = request.Email
         };
 
         var result = await _userManager.CreateAsync(user, request.Password);
+
         if (!result.Succeeded)
         {
             var errors = result.Errors.Select(e => e.Description);
             return BadRequest(new { Errors = errors });
         }
 
-        var addToRoleResult = await _userManager.AddToRoleAsync(user, role);
-        if (!addToRoleResult.Succeeded)
+        var allowedRoles = new[] { "Admin", "User" };
+        var role = allowedRoles.Contains(request.Role) ? request.Role : "User";
+
+        if (!await _roleManager.RoleExistsAsync(role))
         {
-            await _userManager.DeleteAsync(user);
-            var errors = addToRoleResult.Errors.Select(e => e.Description);
+            var roleResult = await _roleManager.CreateAsync(new IdentityRole(role));
+
+            if (!roleResult.Succeeded)
+            {
+                var errors = roleResult.Errors.Select(e => e.Description);
+                return BadRequest(new { Errors = errors });
+            }
+        }
+
+        var addRoleResult = await _userManager.AddToRoleAsync(user, role);
+
+        if (!addRoleResult.Succeeded)
+        {
+            var errors = addRoleResult.Errors.Select(e => e.Description);
             return BadRequest(new { Errors = errors });
         }
 
@@ -77,13 +84,19 @@ public class AuthController : ControllerBase
     public async Task<IActionResult> Login([FromBody] LoginRequest request)
     {
         var user = await _userManager.FindByEmailAsync(request.Email);
+
         if (user is null)
             return Unauthorized(new { Message = "Invalid email or password." });
 
-        if (!await _userManager.CheckPasswordAsync(user, request.Password))
+        var isPasswordValid = await _userManager.CheckPasswordAsync(user, request.Password);
+
+        if (!isPasswordValid)
             return Unauthorized(new { Message = "Invalid email or password." });
 
         var token = await _tokenService.CreateTokenAsync(user);
-        return Ok(new LoginResult(token, DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes)));
+
+        return Ok(new LoginResult(
+            token,
+            DateTime.UtcNow.AddMinutes(_jwtOptions.ExpiresInMinutes)));
     }
 }

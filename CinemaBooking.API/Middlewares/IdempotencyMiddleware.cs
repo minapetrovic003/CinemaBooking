@@ -7,6 +7,13 @@ public class IdempotencyMiddleware
     private static readonly ConcurrentDictionary<string, CachedResponse> _responses = new();
     private readonly RequestDelegate _next;
 
+    // Rute koje su izuzete iz idempotency provjere
+    private static readonly string[] _excludedPaths =
+    [
+        "/auth/login",
+        "/auth/register"
+    ];
+
     public IdempotencyMiddleware(RequestDelegate next)
     {
         _next = next;
@@ -14,23 +21,28 @@ public class IdempotencyMiddleware
 
     public async Task Invoke(HttpContext httpContext)
     {
-        if (httpContext.Request.Method != HttpMethods.Post || ShouldSkip(httpContext.Request.Path))
+        if (httpContext.Request.Method != HttpMethods.Post)
         {
             await _next(httpContext);
             return;
         }
 
-        if (!httpContext.Request.Headers.TryGetValue("Idempotency-Key", out var key) ||
-           string.IsNullOrWhiteSpace(key.ToString()))
+        // Auth endpointi su izuzeti — login/register nisu idempotentne operacije
+        var path = httpContext.Request.Path.Value ?? string.Empty;
+        if (_excludedPaths.Any(p => path.StartsWith(p, StringComparison.OrdinalIgnoreCase)))
         {
-            httpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await _next(httpContext);
+            return;
+        }
+
+        if (!httpContext.Request.Headers.TryGetValue("Idempotency-Key", out var key))
+        {
+            httpContext.Response.StatusCode = 400;
             await httpContext.Response.WriteAsJsonAsync(new { ErrorMessage = "Idempotency-Key header is missing!" });
             return;
         }
 
-        var cacheKey = $"{httpContext.Request.Method}:{httpContext.Request.Path}:{key}";
-
-        if (_responses.TryGetValue(cacheKey, out var cachedResponse))
+        if (_responses.TryGetValue(key!, out var cachedResponse))
         {
             httpContext.Response.Headers["Idempotency-Cache"] = "HIT";
             httpContext.Response.StatusCode = cachedResponse.StatusCode;
@@ -39,37 +51,27 @@ public class IdempotencyMiddleware
             return;
         }
 
-        await using var memoryStream = new MemoryStream();
+        var memoryStream = new MemoryStream();
         var originalBody = httpContext.Response.Body;
         httpContext.Response.Body = memoryStream;
 
-        try
+        await _next(httpContext);
+
+        memoryStream.Seek(0, SeekOrigin.Begin);
+
+        if (httpContext.Response.StatusCode >= 200 && httpContext.Response.StatusCode < 300)
         {
+            var cached = new CachedResponse(
+                memoryStream.ToArray(),
+                httpContext.Response.ContentType ?? "application/json",
+                httpContext.Response.StatusCode);
 
-            await _next(httpContext);
-
-            memoryStream.Seek(0, SeekOrigin.Begin);
-
-            if (httpContext.Response.StatusCode >= 200 && httpContext.Response.StatusCode < 300)
-            {
-                var cached = new CachedResponse(
-                    memoryStream.ToArray(),
-                    httpContext.Response.ContentType ?? "application/json",
-                    httpContext.Response.StatusCode);
-
-                _responses.TryAdd(cacheKey, cached);
-            }
-
-            await memoryStream.CopyToAsync(originalBody);
+            _responses.TryAdd(key!, cached);
         }
-        finally
-        {
-            httpContext.Response.Body = originalBody;
-        }
+
+        await memoryStream.CopyToAsync(originalBody);
+        httpContext.Response.Body = originalBody;
     }
-
-    private static bool ShouldSkip(PathString path)
-        => path.StartsWithSegments("/auth");
 }
 
 public record CachedResponse(byte[] Body, string ContentType, int StatusCode);

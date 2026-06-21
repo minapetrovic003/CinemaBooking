@@ -1,4 +1,4 @@
-﻿using CinemaBooking.Domain;
+﻿using CinemaBooking.Domain.Models;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore;
@@ -23,6 +23,8 @@ public class CinemaBookingContext : IdentityDbContext<ApplicationUser>
     public DbSet<BookingSeat> BookingSeats { get; set; }
     public DbSet<Payment> Payments { get; set; }
 
+    public DbSet<SeatLock> SeatLocks { get; set; }
+
     // Nema više DbSet<User> — Identity sada upravlja korisnicima
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
@@ -36,7 +38,7 @@ public class CinemaBookingContext : IdentityDbContext<ApplicationUser>
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        base.OnModelCreating(modelBuilder); // Ovo mora biti prva linija — registruje Identity tabele
+        base.OnModelCreating(modelBuilder);
 
         modelBuilder.Entity<Movie>(entity =>
         {
@@ -71,6 +73,13 @@ public class CinemaBookingContext : IdentityDbContext<ApplicationUser>
             entity.HasKey(s => s.Id);
             entity.Property(s => s.Price).HasColumnType("decimal(18,2)").IsRequired();
 
+            //OPTIMISTIC CONCURRENCY
+            // Govori EF Core-u da koristi RowVersion kolonu kao concurrency token.
+            // SQL Server ce automatski azurirati vrednost pri svakom UPDATE-u.
+            entity.Property(s => s.RowVersion)
+                  .IsRowVersion()
+                  .IsConcurrencyToken();
+            
             entity.HasOne(s => s.Movie)
                   .WithMany(m => m.Showtimes)
                   .HasForeignKey(s => s.MovieId)
@@ -88,7 +97,6 @@ public class CinemaBookingContext : IdentityDbContext<ApplicationUser>
             entity.Property(b => b.TotalPrice).HasColumnType("decimal(18,2)");
             entity.Property(b => b.Status).HasConversion<string>();
 
-            // UserId je sada string FK ka AspNetUsers tabeli
             entity.Property(b => b.UserId).HasMaxLength(450).IsRequired();
 
             entity.HasOne<ApplicationUser>()
@@ -131,6 +139,30 @@ public class CinemaBookingContext : IdentityDbContext<ApplicationUser>
                   .WithOne(b => b.Payment)
                   .HasForeignKey<Payment>(p => p.BookingId)
                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        //SeatLock konfiguracija
+        modelBuilder.Entity<SeatLock>(entity =>
+        {
+            entity.HasKey(sl => sl.Id);
+
+            entity.Property(sl => sl.UserId).HasMaxLength(450).IsRequired();
+
+            // Jedan korisnik moze imati samo jedan aktivan lock po sedištu i prikazivanju.
+            // Unique indeks sprecava duplikate na nivou baze.
+            entity.HasIndex(sl => new { sl.SeatId, sl.ShowtimeId, sl.UserId })
+                  .IsUnique()
+                  .HasDatabaseName("IX_SeatLocks_SeatShowtimeUser");
+
+            entity.HasOne(sl => sl.Seat)
+                  .WithMany()
+                  .HasForeignKey(sl => sl.SeatId)
+                  .OnDelete(DeleteBehavior.Cascade);
+
+            entity.HasOne(sl => sl.Showtime)
+                  .WithMany()
+                  .HasForeignKey(sl => sl.ShowtimeId)
+                  .OnDelete(DeleteBehavior.Restrict);
         });
     }
 }

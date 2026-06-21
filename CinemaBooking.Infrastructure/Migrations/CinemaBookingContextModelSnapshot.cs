@@ -205,6 +205,42 @@ namespace CinemaBooking.Infrastructure.Migrations
                     b.ToTable("Seats", (string)null);
                 });
 
+            modelBuilder.Entity("CinemaBooking.Domain.SeatLock", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("LockedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<long>("SeatId")
+                        .HasColumnType("bigint");
+
+                    b.Property<long>("ShowtimeId")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasMaxLength(450)
+                        .HasColumnType("nvarchar(450)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ShowtimeId");
+
+                    b.HasIndex("SeatId", "ShowtimeId", "UserId")
+                        .IsUnique()
+                        .HasDatabaseName("IX_SeatLocks_SeatShowtimeUser");
+
+                    b.ToTable("SeatLocks");
+                });
+
             modelBuilder.Entity("CinemaBooking.Domain.Showtime", b =>
                 {
                     b.Property<long>("Id")
@@ -224,6 +260,12 @@ namespace CinemaBooking.Infrastructure.Migrations
 
                     b.Property<decimal>("Price")
                         .HasColumnType("decimal(18,2)");
+
+                    b.Property<byte[]>("RowVersion")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("rowversion");
 
                     b.Property<DateTime>("StartTime")
                         .HasColumnType("datetime2");
@@ -499,6 +541,25 @@ namespace CinemaBooking.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Hall");
+                });
+
+            modelBuilder.Entity("CinemaBooking.Domain.SeatLock", b =>
+                {
+                    b.HasOne("CinemaBooking.Domain.Seat", "Seat")
+                        .WithMany()
+                        .HasForeignKey("SeatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("CinemaBooking.Domain.Showtime", "Showtime")
+                        .WithMany()
+                        .HasForeignKey("ShowtimeId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Seat");
+
+                    b.Navigation("Showtime");
                 });
 
             modelBuilder.Entity("CinemaBooking.Domain.Showtime", b =>

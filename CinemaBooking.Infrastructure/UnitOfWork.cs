@@ -1,5 +1,5 @@
-﻿using CinemaBooking.Domain;
-using CinemaBooking.Domain.Repositories;
+﻿using CinemaBooking.Domain.Models;
+using CinemaBooking.Application.Repositories;
 using CinemaBooking.Infrastructure.Repositories;
 
 namespace CinemaBooking.Infrastructure;
@@ -16,13 +16,15 @@ public class UnitOfWork : IUnitOfWork
     private IRepository<Seat>? _seats;
     private IRepository<BookingSeat>? _bookingSeats;
 
+    private ISeatLockRepository? _seatLocks;
+
     public UnitOfWork(CinemaBookingContext context)
     {
         _context = context;
     }
 
     public IMovieRepository Movies =>
-        _movies ??= new MovieRepository(_context);
+        _movies ??= new MovieRepository(_context);//lazy initialization
 
     public IHallRepository Halls =>
         _halls ??= new HallRepository(_context);
@@ -41,6 +43,9 @@ public class UnitOfWork : IUnitOfWork
 
     public IRepository<BookingSeat> BookingSeats =>
         _bookingSeats ??= new Repository<BookingSeat>(_context);
+
+    public ISeatLockRepository SeatLocks =>
+       _seatLocks ??= new SeatLockRepository(_context);
 
     public int SaveChanges() => _context.SaveChanges();
     public Task<int> SaveChangesAsync() => _context.SaveChangesAsync();

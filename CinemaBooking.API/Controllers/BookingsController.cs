@@ -1,10 +1,11 @@
-﻿using CinemaBooking.API.CQRS.Bookings.Commands;
-using CinemaBooking.API.CQRS.Bookings.Queries;
-using CinemaBooking.API.DTOs.Bookings;
+﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
+using CinemaBooking.Application.CQRS.Bookings.Queries;
+using CinemaBooking.Domain.DTOs.Bookings;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using System.Security.Claims;
 
 namespace CinemaBooking.API.Controllers;
 
@@ -24,15 +25,11 @@ public class BookingsController : ControllerBase
     public async Task<IActionResult> GetAll([FromQuery] BookingSearchRequest request)
     {
         var query = new GetAllBookingsQuery(
-            request.UserEmail,
-            request.Status,
-            request.FromDate,
-            request.ToDate,
-            request.Page,
-            request.PageSize);
+            request.UserEmail, request.Status,
+            request.FromDate, request.ToDate,
+            request.Page, request.PageSize);
 
-        var result = await _mediator.Send(query);
-        return Ok(result);
+        return Ok(await _mediator.Send(query));
     }
 
     [HttpGet("{id}")]
@@ -44,17 +41,35 @@ public class BookingsController : ControllerBase
             : Ok(result);
     }
 
+    [HttpGet("{id}/verify")]
+    [AllowAnonymous]
+    public async Task<IActionResult> Verify(long id)
+    {
+        var result = await _mediator.Send(new GetBookingByIdQuery(id));
+        if (result is null)
+            return NotFound(new { Message = $"Booking {id} not found." });
+
+        return Ok(new
+        {
+            BookingId = result.Id,
+            Status = result.Status,
+            Movie = result.MovieTitle,
+            Hall = result.HallName,
+            Showtime = result.ShowtimeStart,
+            Seats = result.Seats.Select(s => s.SeatLabel),
+            TotalPrice = result.TotalPrice,
+            CustomerName = result.UserFullName,
+        });
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreateBookingRequest request)
     {
         try
         {
             var command = new CreateBookingCommand(
-                request.UserEmail,
-                request.MovieTitle,
-                request.HallName,
-                request.ShowtimeStartTime,
-                request.Seats);
+                request.UserEmail, request.MovieTitle,
+                request.HallName, request.ShowtimeStartTime, request.Seats);
 
             var (dto, errorMessage, statusCode) = await _mediator.Send(command);
 
@@ -76,12 +91,33 @@ public class BookingsController : ControllerBase
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(long id)
     {
-        // Proveri da li booking postoji
         var existing = await _mediator.Send(new GetBookingByIdQuery(id));
         if (existing is null)
             return NotFound(new { Message = $"Booking with id {id} not found." });
 
         var (success, errorMessage) = await _mediator.Send(new CancelBookingCommand(id));
+        return success
+            ? NoContent()
+            : Conflict(new { Message = errorMessage });
+    }
+
+    /// <summary>
+    /// Check-in rezervacije putem QR koda.
+    /// Ruta je otvorena (AllowAnonymous) jer korisnik dobija QR link iskljucivo
+    /// na sopstveni email i nema razloga da mora biti ulogovan.
+    /// </summary>
+    [HttpPatch("{id}/checkin")]
+    [AllowAnonymous]
+    public async Task<IActionResult> CheckIn(long id)
+    {
+        var existing = await _mediator.Send(new GetBookingByIdQuery(id));
+        if (existing is null)
+            return NotFound(new { Message = $"Booking with id {id} not found." });
+
+        // Prosledujemo dummy vrednosti jer handler vise ne proverava vlasnistvo
+        var (success, errorMessage) = await _mediator.Send(
+            new CheckInBookingCommand(id, string.Empty, false));
+
         return success
             ? NoContent()
             : Conflict(new { Message = errorMessage });

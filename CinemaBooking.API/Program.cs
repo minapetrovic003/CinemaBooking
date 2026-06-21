@@ -1,11 +1,9 @@
 using CinemaBooking.API.Autentification;
-using CinemaBooking.API.CQRS.Behaviors;
-using CinemaBooking.API.Extensions;
+using CinemaBooking.Application.CQRS.Behaviors;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
-using CinemaBooking.API.Services.Auth;
-using CinemaBooking.API.Services.Notifications;
-using CinemaBooking.Domain.Repositories;
+using CinemaBooking.Application.Notifications;
+using CinemaBooking.Application.Repositories;
 using CinemaBooking.Infrastructure;
 using CinemaBooking.Infrastructure.Identity;
 using FluentValidation;
@@ -15,22 +13,36 @@ using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
-using System.Security.Claims;
 using System.Text;
+using CinemaBooking.Application.CQRS.Bookings.Handlers;
+using CinemaBooking.Application.Services;
+using CinemaBooking.API.Extensions;
+using CinemaBooking.Application.CQRS.Bookings.Validators;
+using CinemaBooking.Application.Config;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddControllers();
 builder.Services.AddOpenApi();
-builder.Services.AddCors();
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("FrontendPolicy", policy =>
+    {
+        policy.WithOrigins("http://localhost:5173")
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
 
 builder.Services.AddMediatR(cfg =>
 {
-    cfg.RegisterServicesFromAssemblyContaining<Program>();
+    cfg.RegisterServicesFromAssemblyContaining<CreateBookingHandler>();
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 });
 
 builder.Services.AddValidatorsFromAssemblyContaining<Program>();
+builder.Services.AddValidatorsFromAssemblyContaining<CreateBookingCommandValidator>();
 
 builder.Services.AddDbContext<CinemaBookingContext>(options =>
 {
@@ -40,30 +52,29 @@ builder.Services.AddDbContext<CinemaBookingContext>(options =>
 });
 
 builder.Services.Configure<JwtOptions>(builder.Configuration.GetSection("Jwt"));
+builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
+builder.Services.Configure<AppSettings>(builder.Configuration.GetSection("AppSettings"));
 
 var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
     ?? throw new InvalidOperationException("JWT configuration is missing.");
+
 if (string.IsNullOrWhiteSpace(jwtOptions.Key))
 {
     throw new InvalidOperationException("JWT key is missing.");
 }
 
-builder.Services.Configure<SmtpSettings>(builder.Configuration.GetSection("Smtp"));
-builder.Services.AddScoped<INotificationService, NotificationService>();
 
-// ── NOVO: registracija PDF servisa ──────────────────────────────────────────
+builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IPdfTicketService, PdfTicketService>();
-// ────────────────────────────────────────────────────────────────────────────
 
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
+builder.Services.AddScoped<IUserRepository, UserRepository>();
 
-builder.Services.AddScoped<IMovieService, MovieService>();
 builder.Services.AddScoped<IHallService, HallService>();
 builder.Services.AddScoped<IShowtimeService, ShowtimeService>();
-builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IPaymentService, PaymentService>();
+builder.Services.AddScoped<ISeatLockService, SeatLockService>();
 
-// ASP.NET Identity
 builder.Services.AddIdentityCore<ApplicationUser>(opt =>
 {
     opt.User.RequireUniqueEmail = true;
@@ -77,7 +88,6 @@ builder.Services.AddIdentityCore<ApplicationUser>(opt =>
 .AddRoles<IdentityRole>()
 .AddEntityFrameworkStores<CinemaBookingContext>();
 
-// JWT Authentication
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(opt =>
@@ -90,10 +100,7 @@ builder.Services
             ValidIssuer = jwtOptions.Issuer,
             ValidAudience = jwtOptions.Audience,
             IssuerSigningKey = new SymmetricSecurityKey(
-                Encoding.UTF8.GetBytes(jwtOptions.Key)),
-            RoleClaimType = ClaimTypes.Role,
-            NameClaimType = ClaimTypes.Email,
-            ClockSkew = TimeSpan.FromMinutes(2)
+                Encoding.UTF8.GetBytes(jwtOptions.Key))
         };
     });
 
@@ -103,10 +110,12 @@ builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var app = builder.Build();
 
-await app.SeedIdentityAsync();  
-
+await app.SeedIdentityAsync();
 
 app.UseGlobalExceptionHandling();
+
+app.UseCors("FrontendPolicy");
+
 app.UseRequestLogging();
 app.UseIdempotency();
 
@@ -116,10 +125,9 @@ if (app.Environment.IsDevelopment())
     app.MapScalarApiReference();
 }
 
-app.UseHttpsRedirection();
-app.UseCors(x => x.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader());
 app.UseAuthentication();
 app.UseAuthorization();
+
 app.MapControllers();
 
 app.Run();
