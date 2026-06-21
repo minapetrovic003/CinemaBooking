@@ -1,8 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 
 const API = import.meta.env.VITE_API_BASE_URL || "http://localhost:5295";
-
-// Belgrade timezone za sve prikaze datuma/vremena
 const BELGRADE_TZ = "Europe/Belgrade";
 
 const css = `
@@ -75,6 +73,15 @@ const css = `
   }
   .btn-primary:hover { background: #d49a95; transform: translateY(-1px); }
   .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-success {
+    background: #27ae60; border: none;
+    color: #fff; font-family: 'Inter', sans-serif;
+    font-size: 0.85rem; font-weight: 600;
+    padding: 0.45rem 1.1rem; border-radius: 8px;
+    cursor: pointer; transition: all 0.2s;
+  }
+  .btn-success:hover { background: #2ecc71; transform: translateY(-1px); }
+  .btn-success:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
   .user-badge {
     display: flex; align-items: center; gap: 0.6rem;
@@ -326,7 +333,7 @@ const css = `
   .status-cancelled { background: rgba(204,102,102,0.12); color: #cc6666; }
   .status-canceled { background: rgba(204,102,102,0.12); color: #cc6666; }
   .status-pending { background: rgba(212,168,67,0.12); color: #d4a843; }
-  .status-checkedin { background: rgba(41,128,185,0.12); color: #2980b9; }
+  .status-checkedin { background: rgba(125,184,125,0.12); color: #7db87d; }
 
   .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 2rem; }
   .stat-card { background: var(--dark2); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 1.25rem; }
@@ -340,7 +347,7 @@ const css = `
   .toast.error { border-left-color: #cc6666; }
   @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-  .booking-card { background: var(--dark2); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; transition: all 0.2s; }
+  .booking-card { background: var(--dark2); border: 1px solid rgba(255,255,255,0.06); border-radius: 14px; padding: 1.25rem 1.5rem; margin-bottom: 1rem; transition: all 0.2s; cursor: pointer; }
   .booking-card:hover { border-color: rgba(204,139,134,0.2); }
   .booking-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem; }
   .booking-movie-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--cream); }
@@ -367,7 +374,6 @@ const css = `
   .add-panel { background: var(--dark2); border: 1px solid rgba(204,139,134,0.15); border-radius: 16px; padding: 1.5rem; margin-bottom: 2rem; }
   .add-panel-title { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--cream); margin-bottom: 1.25rem; }
 
-  /* Verify page */
   .verify-page { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 2rem; background: #0e0b0b; }
   .verify-card { background: var(--dark2); border: 1px solid rgba(204,139,134,0.2); border-radius: 20px; padding: 2.5rem; max-width: 480px; width: 100%; text-align: center; }
   .verify-status-icon { font-size: 4rem; margin-bottom: 1rem; }
@@ -378,6 +384,19 @@ const css = `
   .btn-checkin { background: #27ae60; border: none; color: #fff; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; padding: 0.75rem 2rem; border-radius: 10px; cursor: pointer; transition: all 0.2s; margin-top: 1.5rem; width: 100%; }
   .btn-checkin:hover { background: #2ecc71; transform: translateY(-1px); }
   .btn-checkin:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .method-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin: 1rem 0; }
+  .method-btn {
+    background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 10px; padding: 0.75rem; cursor: pointer; transition: all 0.2s;
+    color: var(--text-muted); font-family: 'Inter', sans-serif; font-size: 0.85rem;
+    text-align: center;
+  }
+  .method-btn:hover, .method-btn.selected {
+    border-color: rgba(204,139,134,0.5); background: rgba(204,139,134,0.08); color: var(--rose);
+  }
+
+  .info-box { background: rgba(204,139,134,0.06); border: 1px solid rgba(204,139,134,0.15); border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.83rem; color: var(--text-muted); margin-top: 0.75rem; }
 `;
 
 const GENRE_EMOJI = {
@@ -387,20 +406,30 @@ const GENRE_EMOJI = {
 };
 const getEmoji = (genre) => GENRE_EMOJI[genre] || "🎬";
 const GENRES = ["All", "Action", "Comedy", "Drama", "Horror", "Thriller", "Romance", "Sci-Fi", "Animation", "Adventure", "Mystery", "Fantasy", "Crime"];
+const PAYMENT_METHODS = ["CreditCard", "DebitCard", "PayPal", "Voucher"];
 
-function formatEur(amount) {
-  return `€${Number(amount).toFixed(2)}`;
-}
+function formatEur(amount) { return `€${Number(amount).toFixed(2)}`; }
 
-// Formatira datum/vreme u Belgrade vremensku zonu
 function fmtDate(dt, opts = {}) {
   return new Date(dt).toLocaleDateString("en-GB", { timeZone: BELGRADE_TZ, ...opts });
 }
-function fmtTime(dt, opts = {}) {
-  return new Date(dt).toLocaleTimeString("en-GB", { timeZone: BELGRADE_TZ, hour: "2-digit", minute: "2-digit", ...opts });
+function fmtTime(dt) {
+  return new Date(dt).toLocaleTimeString("en-GB", { timeZone: BELGRADE_TZ, hour: "2-digit", minute: "2-digit" });
 }
 function fmtDateTime(dt) {
   return new Date(dt).toLocaleString("en-GB", { timeZone: BELGRADE_TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
+// Mapa statusa za konzistentni prikaz — CheckedIn se prikazuje kao Confirmed
+function displayStatus(status) {
+  if (!status) return "Confirmed";
+  if (status === "CheckedIn") return "Confirmed ✓";
+  return status;
+}
+function statusClass(status) {
+  if (!status) return "confirmed";
+  if (status === "CheckedIn") return "confirmed";
+  return status.toLowerCase();
 }
 
 function useToast() {
@@ -417,7 +446,6 @@ function parseJwt(token) {
   try { return JSON.parse(atob(token.split(".")[1])); } catch { return null; }
 }
 
-// UUID generator za Idempotency-Key
 function generateUUID() {
   return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
     const r = (Math.random() * 16) | 0;
@@ -425,107 +453,63 @@ function generateUUID() {
   });
 }
 
-// Sigurno parsuje JSON response — ne baca ako body nije JSON (npr. prazni 401)
 async function safeJson(res) {
   const text = await res.text();
   if (!text) return {};
   try { return JSON.parse(text); } catch { return { message: text }; }
 }
 
-// authFetch automatski dodaje:
-// - Authorization Bearer token (ako postoji)
-// - Idempotency-Key za sve POST zahteve
-// Returns: { res, data } ili { res: null, data: null } za mrežnu grešku
 async function authFetch(url, token, options = {}) {
   const method = (options.method || "GET").toUpperCase();
-
   const headers = {
     "Content-Type": "application/json",
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     ...(method === "POST" ? { "Idempotency-Key": generateUUID() } : {}),
     ...(options.headers || {}),
   };
-
   return fetch(url, { ...options, headers });
 }
 
-// Parsira hash "#verify/123" i vraca ID ili null
 function parseVerifyHash() {
   const hash = window.location.hash;
   const match = hash.match(/^#verify\/(\d+)$/);
   return match ? parseInt(match[1], 10) : null;
 }
 
-
 export default function App() {
   const [page, setPage] = useState("home");
   const [token, setToken] = useState(() => localStorage.getItem("cb_token") || null);
   const [authModal, setAuthModal] = useState(null);
-
-  // Lazy init — čita hash samo pri mountu, bez useEffect-a
   const [verifyBookingId, setVerifyBookingId] = useState(() => parseVerifyHash());
-
   const { toasts, add: toast } = useToast();
 
-  // user se izvodi iz tokena — useMemo umjesto useEffect + setState
   const user = useMemo(() => {
     if (!token) return null;
     const p = parseJwt(token);
     if (!p) return null;
-    const role =
-      p["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] ||
-      p.role || "User";
-    const email =
-      p["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"] ||
-      p.email || "";
-    const name =
-      p["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] ||
-      p.name || email;
+    const role = p["http://schemas.microsoft.com/ws/2008/06/identity/claims/role"] || p.role || "User";
+    const email = p["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/emailaddress"] || p.email || "";
+    const name = p["http://schemas.xmlsoap.org/ws/2005/05/identity/claims/name"] || p.name || email;
     return { email, name, role, token };
   }, [token]);
 
-  // Hash listener — setState je u event handler-u, ne u effect telu
   useEffect(() => {
     const onHashChange = () => setVerifyBookingId(parseVerifyHash());
     window.addEventListener("hashchange", onHashChange);
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
-  const logout = () => {
-    localStorage.removeItem("cb_token");
-    setToken(null);
-    setPage("home");
-    toast("Logged out", "info");
-  };
-
-  const handleLogin = (tkn) => {
-    localStorage.setItem("cb_token", tkn);
-    setToken(tkn);
-    setAuthModal(null);
-    toast("Welcome back!", "success");
-  };
-
+  const logout = () => { localStorage.removeItem("cb_token"); setToken(null); setPage("home"); toast("Logged out", "info"); };
+  const handleLogin = (tkn) => { localStorage.setItem("cb_token", tkn); setToken(tkn); setAuthModal(null); toast("Welcome back!", "success"); };
   const isAdmin = user?.role === "Admin";
-  // ... ostatak App komponente ostaje isti
 
-  // Ako je QR scan — prikazuj verify stranicu
   if (verifyBookingId) {
     return (
       <>
         <style>{css}</style>
-        <VerifyPage
-          bookingId={verifyBookingId}
-          user={user}
-          token={token}
-          toast={toast}
-          onBack={() => {
-            window.location.hash = "";
-            setVerifyBookingId(null);
-          }}
-        />
-        <div className="toast-container">
-          {toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}
-        </div>
+        <VerifyPage bookingId={verifyBookingId} token={token} toast={toast}
+          onBack={() => { window.location.hash = ""; setVerifyBookingId(null); }} />
+        <div className="toast-container">{toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}</div>
       </>
     );
   }
@@ -535,11 +519,9 @@ export default function App() {
       <style>{css}</style>
       <div className="app">
         <nav>
-          <div className="nav-logo" onClick={() => setPage("home")}>
-            Cinema<span>Verse</span>
-          </div>
+          <div className="nav-logo" onClick={() => setPage("home")}>Cinema<span>Verse</span></div>
           <div className="nav-links">
-            <button className={`nav-btn ${page === "home" ? "active" : ""}`} onClick={() => setPage("home")}>Films</button>
+            <button className={`nav-btn ${page === "home" ? "active" : ""}`} onClick={() => setPage("home")}>Movies</button>
             <button className={`nav-btn ${page === "showtimes" ? "active" : ""}`} onClick={() => setPage("showtimes")}>Showtimes</button>
             {user && <button className={`nav-btn ${page === "mybookings" ? "active" : ""}`} onClick={() => setPage("mybookings")}>My Bookings</button>}
             {isAdmin && <button className={`nav-btn ${page === "admin" ? "active" : ""}`} onClick={() => setPage("admin")}>Admin</button>}
@@ -566,30 +548,21 @@ export default function App() {
         {page === "admin" && isAdmin && <AdminPage token={token} toast={toast} />}
 
         {authModal && (
-          <AuthModal
-            mode={authModal}
-            onClose={() => setAuthModal(null)}
-            onLogin={handleLogin}
-            switchMode={(m) => setAuthModal(m)}
-            toast={toast}
-          />
+          <AuthModal mode={authModal} onClose={() => setAuthModal(null)} onLogin={handleLogin}
+            switchMode={(m) => setAuthModal(m)} toast={toast} />
         )}
-
-        <div className="toast-container">
-          {toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}
-        </div>
+        <div className="toast-container">{toasts.map(t => <div key={t.id} className={`toast ${t.type}`}>{t.msg}</div>)}</div>
       </div>
     </>
   );
 }
 
-// ─── VERIFY PAGE (QR skeniranje) ───
-function VerifyPage({ bookingId, user, token, toast, onBack }) {
+// ─── VERIFY PAGE ───
+function VerifyPage({ bookingId, token, toast, onBack }) {
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
   const [checkingIn, setCheckingIn] = useState(false);
-  const [checkedIn, setCheckedIn] = useState(false);
-  const isAdmin = user?.role === "Admin";
+  const [done, setDone] = useState(false);
 
   useEffect(() => {
     fetch(`${API}/bookings/${bookingId}/verify`)
@@ -603,32 +576,27 @@ function VerifyPage({ bookingId, user, token, toast, onBack }) {
     try {
       const r = await authFetch(`${API}/bookings/${bookingId}/checkin`, token, { method: "PATCH" });
       if (r.ok || r.status === 204) {
-        setCheckedIn(true);
+        setDone(true);
         setBooking(b => b ? { ...b, status: "CheckedIn" } : b);
-        toast("Guest checked in successfully!", "success");
+        toast("Checked in successfully!", "success");
       } else {
-        const e = await r.json();
+        const e = await safeJson(r);
         toast(e.message || "Check-in failed.", "error");
       }
     } catch { toast("Connection error.", "error"); }
     setCheckingIn(false);
   };
 
-  const statusIcon = () => {
-    if (!booking) return "🎟";
-    if (booking.status === "CheckedIn" || checkedIn) return "✅";
-    if (booking.status === "Confirmed") return "🎬";
-    if (booking.status === "Cancelled" || booking.status === "Canceled") return "❌";
-    return "🎟";
-  };
+  const currentStatus = booking?.status;
+  const isConfirmed = currentStatus === "Confirmed";
+  const isCheckedIn = currentStatus === "CheckedIn" || done;
+  const isCanceled = currentStatus === "Cancelled" || currentStatus === "Canceled";
 
   return (
     <div className="verify-page">
       <div className="verify-card">
         <button className="btn-outline" style={{ marginBottom: "1.5rem" }} onClick={onBack}>← Back to App</button>
-        {loading ? (
-          <div className="spinner" />
-        ) : !booking ? (
+        {loading ? <div className="spinner" /> : !booking ? (
           <div>
             <div className="verify-status-icon">❓</div>
             <div className="verify-title">Booking Not Found</div>
@@ -636,14 +604,13 @@ function VerifyPage({ bookingId, user, token, toast, onBack }) {
           </div>
         ) : (
           <>
-            <div className="verify-status-icon">{statusIcon()}</div>
+            <div className="verify-status-icon">{isCheckedIn ? "✅" : isConfirmed ? "🎬" : isCanceled ? "❌" : "🎟"}</div>
             <div className="verify-title">Booking #{booking.bookingId}</div>
             <div style={{ marginBottom: "0.5rem" }}>
-              <span className={`status-badge status-${(booking.status || "").toLowerCase()}`}>
-                {booking.status}
+              <span className={`status-badge status-${statusClass(currentStatus)}`}>
+                {displayStatus(currentStatus)}
               </span>
             </div>
-
             <div style={{ margin: "1.5rem 0", textAlign: "left" }}>
               {[
                 ["Guest", booking.customerName],
@@ -660,24 +627,24 @@ function VerifyPage({ bookingId, user, token, toast, onBack }) {
               ))}
             </div>
 
-            {user && booking.status === "Confirmed" && !checkedIn && (
-  <button className="btn-checkin" onClick={handleCheckIn} disabled={checkingIn}>
-    {checkingIn ? "Checking in..." : isAdmin ? "✓ Check In Guest" : "✓ Check In"}
-  </button>
-)}
+            {/* Check-in je dostupan svima — ruta je otvorena jer QR dobija samo vlasnik */}
+            {isConfirmed && !done && (
+              <button className="btn-checkin" onClick={handleCheckIn} disabled={checkingIn}>
+                {checkingIn ? "Checking in..." : "✓ Check In"}
+              </button>
+            )}
 
-            {(booking.status === "CheckedIn" || checkedIn) && (
+            {isCheckedIn && (
               <div style={{ marginTop: "1.5rem", padding: "1rem", background: "rgba(39,174,96,0.1)", border: "1px solid rgba(39,174,96,0.3)", borderRadius: "10px", color: "#27ae60" }}>
-                ✅ Guest has been checked in
+                ✅ Successfully checked in
               </div>
             )}
 
-            {booking.status !== "Confirmed" && booking.status !== "CheckedIn" && !checkedIn && (
+            {!isConfirmed && !isCheckedIn && (
               <div style={{ marginTop: "1.5rem", padding: "1rem", background: "rgba(204,102,102,0.1)", border: "1px solid rgba(204,102,102,0.3)", borderRadius: "10px", color: "#cc6666" }}>
-                ⚠️ This booking cannot be checked in (status: {booking.status})
+                ⚠️ Booking cannot be checked in (status: {currentStatus})
               </div>
             )}
-
           </>
         )}
       </div>
@@ -697,7 +664,7 @@ function MoviesPage({ setPage, user, toast, setAuthModal }) {
     fetch(`${API}/movies?pageSize=50`)
       .then(r => r.json())
       .then(d => { setMovies(d.items || d); setLoading(false); })
-      .catch(() => { setLoading(false); toast("Could not connect to backend", "error"); setMovies(demoMovies()); });
+      .catch(() => { setLoading(false); toast("Could not connect to backend", "error"); });
   }, []);
 
   const filtered = movies.filter(m =>
@@ -717,9 +684,7 @@ function MoviesPage({ setPage, user, toast, setAuthModal }) {
           <h1 className="hero-title" style={{ textAlign: "left", marginBottom: "1.5rem" }}>
             Your next<br /><em>cinematic journey</em>
           </h1>
-          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", alignItems: "center" }}>
-            <input className="search-box" placeholder="Search films..." value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
+          <input className="search-box" placeholder="Search movies..." value={search} onChange={e => setSearch(e.target.value)} />
           <div className="filters" style={{ marginTop: "1rem" }}>
             {GENRES.map(g => (
               <button key={g} className={`filter-chip ${genre === g ? "active" : ""}`} onClick={() => setGenre(g)}>{g}</button>
@@ -729,7 +694,7 @@ function MoviesPage({ setPage, user, toast, setAuthModal }) {
       </div>
       <div className="section">
         {loading ? <div className="spinner" /> : filtered.length === 0 ? (
-          <div className="empty-state"><div className="empty-state-icon">🎬</div><p>No films found</p></div>
+          <div className="empty-state"><div className="empty-state-icon">🎬</div><p>No movies found</p></div>
         ) : (
           <div className="movie-grid">
             {filtered.map(m => (
@@ -741,10 +706,7 @@ function MoviesPage({ setPage, user, toast, setAuthModal }) {
                 </div>
                 <div className="movie-info">
                   <div className="movie-title">{m.title}</div>
-                  <div className="movie-meta">
-                    <span>{m.durationMinutes} min</span>
-                    <span>{m.genre}</span>
-                  </div>
+                  <div className="movie-meta"><span>{m.durationMinutes} min</span><span>{m.genre}</span></div>
                   {m.showtimeCount > 0 && <div className="movie-showtimes-count">{m.showtimeCount} showtime{m.showtimeCount !== 1 ? "s" : ""}</div>}
                 </div>
               </div>
@@ -761,19 +723,20 @@ function MovieDetail({ movie, onBack, user, setAuthModal, toast }) {
   const [showtimes, setShowtimes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bookingShowtime, setBookingShowtime] = useState(null);
+  const [detailShowtime, setDetailShowtime] = useState(null);
 
   useEffect(() => {
     fetch(`${API}/showtimes?movieTitle=${encodeURIComponent(movie.title)}`)
       .then(r => r.json())
       .then(d => { setShowtimes(Array.isArray(d) ? d : d.items || []); setLoading(false); })
-      .catch(() => { setLoading(false); setShowtimes(demoShowtimes(movie.title)); });
+      .catch(() => setLoading(false));
   }, [movie.id]);
 
   const upcoming = showtimes.filter(s => new Date(s.startTime) > new Date());
 
   return (
     <div className="section">
-      <button className="btn-outline" style={{ marginBottom: "1.5rem" }} onClick={onBack}>← Back to Films</button>
+      <button className="btn-outline" style={{ marginBottom: "1.5rem" }} onClick={onBack}>← Back to Movies</button>
       <div className="movie-detail-header">
         <div className="movie-detail-poster">{getEmoji(movie.genre)}</div>
         <div className="movie-detail-info">
@@ -790,12 +753,12 @@ function MovieDetail({ movie, onBack, user, setAuthModal, toast }) {
       <div className="divider" />
       <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.4rem", color: "var(--cream)", marginBottom: "1.25rem" }}>Upcoming Showtimes</h2>
       {loading ? <div className="spinner" /> : upcoming.length === 0 ? (
-        <div className="empty-state"><p>No upcoming showtimes for this film</p></div>
+        <div className="empty-state"><p>No upcoming showtimes for this movie</p></div>
       ) : (
         <div className="showtime-list">
           {upcoming.map(s => (
-            <div key={s.id} className="showtime-card" onClick={() => user ? setBookingShowtime(s) : setAuthModal("login")}>
-              <div>
+            <div key={s.id} className="showtime-card">
+              <div onClick={() => setDetailShowtime(s)} style={{ flex: 1 }}>
                 <div style={{ fontSize: "1rem", color: "var(--cream)", fontWeight: 500 }}>
                   {fmtDate(s.startTime, { weekday: "short", day: "numeric", month: "short" })}
                 </div>
@@ -813,7 +776,10 @@ function MovieDetail({ movie, onBack, user, setAuthModal, toast }) {
               </div>
               <div>
                 <div className="showtime-price">{formatEur(s.price)}</div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textAlign: "right" }}>{user ? "Book now →" : "Login to book"}</div>
+                <button className="btn-primary" style={{ fontSize: "0.8rem", padding: "0.35rem 0.9rem", marginTop: "0.4rem" }}
+                  onClick={() => user ? setBookingShowtime(s) : setAuthModal("login")}>
+                  {user ? "Book now" : "Login to book"}
+                </button>
               </div>
             </div>
           ))}
@@ -823,6 +789,46 @@ function MovieDetail({ movie, onBack, user, setAuthModal, toast }) {
         <BookingModal showtime={bookingShowtime} movie={movie} user={user} token={user?.token}
           onClose={() => setBookingShowtime(null)} toast={toast} />
       )}
+      {detailShowtime && (
+        <ShowtimeDetailModal showtime={detailShowtime} movie={movie} user={user}
+          onClose={() => setDetailShowtime(null)}
+          onBook={(s) => { setDetailShowtime(null); if (user) setBookingShowtime(s); else setAuthModal("login"); }} />
+      )}
+    </div>
+  );
+}
+
+// ─── SHOWTIME DETAIL MODAL ───
+function ShowtimeDetailModal({ showtime, movie, user, onClose, onBook }) {
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-header">
+          <div className="modal-title">Showtime Details</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.3rem", color: "var(--cream)", marginBottom: "1.25rem" }}>{movie?.title}</div>
+          {[
+            ["Date", fmtDate(showtime.startTime, { weekday: "long", day: "numeric", month: "long", year: "numeric" })],
+            ["Start Time", fmtTime(showtime.startTime)],
+            ["End Time", fmtTime(showtime.endTime)],
+            ["Hall", showtime.hallName],
+            ["Capacity", showtime.hallCapacity],
+            ["Available Seats", showtime.availableSeats],
+            ["Price per Seat", formatEur(showtime.price)],
+          ].map(([k, v]) => (
+            <div key={k} className="verify-info-row">
+              <span className="verify-info-label">{k}</span>
+              <span className="verify-info-val" className={k === "Available Seats" ? (showtime.availableSeats > 20 ? "avail-good" : showtime.availableSeats > 5 ? "avail-low" : "avail-none") : ""}>{v}</span>
+            </div>
+          ))}
+          <button className="btn-primary" style={{ width: "100%", marginTop: "1.5rem", padding: "0.75rem" }}
+            onClick={() => onBook(showtime)}>
+            {user ? "Book This Showtime" : "Login to Book"}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -832,13 +838,14 @@ function ShowtimesPage({ user, token, toast, setAuthModal }) {
   const [showtimes, setShowtimes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [bookingShowtime, setBookingShowtime] = useState(null);
+  const [detailShowtime, setDetailShowtime] = useState(null);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
     fetch(`${API}/showtimes`)
       .then(r => r.json())
       .then(d => { setShowtimes(Array.isArray(d) ? d : d.items || []); setLoading(false); })
-      .catch(() => { setLoading(false); setShowtimes(demoShowtimes()); });
+      .catch(() => setLoading(false));
   }, []);
 
   const upcoming = showtimes.filter(s =>
@@ -850,15 +857,15 @@ function ShowtimesPage({ user, token, toast, setAuthModal }) {
     <div className="section">
       <div className="section-header">
         <h1 className="section-title">Showtimes</h1>
-        <input className="search-box" style={{ width: 220 }} placeholder="Search film..." value={search} onChange={e => setSearch(e.target.value)} />
+        <input className="search-box" style={{ width: 220 }} placeholder="Search movie..." value={search} onChange={e => setSearch(e.target.value)} />
       </div>
       {loading ? <div className="spinner" /> : upcoming.length === 0 ? (
         <div className="empty-state"><div className="empty-state-icon">🎬</div><p>No upcoming showtimes</p></div>
       ) : (
         <div className="showtime-list">
           {upcoming.map(s => (
-            <div key={s.id} className="showtime-card" onClick={() => user ? setBookingShowtime(s) : setAuthModal("login")}>
-              <div>
+            <div key={s.id} className="showtime-card">
+              <div onClick={() => setDetailShowtime(s)} style={{ flex: 1, cursor: "pointer" }}>
                 <div className="showtime-movie">{s.movieTitle}</div>
                 <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", marginTop: "3px" }}>{s.movieGenre}</div>
               </div>
@@ -873,19 +880,27 @@ function ShowtimesPage({ user, token, toast, setAuthModal }) {
               </div>
               <div>
                 <div className="showtime-price">{formatEur(s.price)}</div>
-                <div style={{ fontSize: "0.75rem", color: "var(--text-muted)", textAlign: "right" }}>{user ? "Select seats →" : "Login required"}</div>
+                <button className="btn-primary" style={{ fontSize: "0.8rem", padding: "0.35rem 0.9rem", marginTop: "0.4rem" }}
+                  onClick={() => user ? setBookingShowtime(s) : setAuthModal("login")}>
+                  {user ? "Book →" : "Login"}
+                </button>
               </div>
             </div>
           ))}
         </div>
       )}
       {bookingShowtime && (
-        <BookingModal
-          showtime={bookingShowtime}
+        <BookingModal showtime={bookingShowtime}
           movie={{ title: bookingShowtime.movieTitle, genre: bookingShowtime.movieGenre }}
           user={user} token={token}
-          onClose={() => setBookingShowtime(null)} toast={toast}
-        />
+          onClose={() => setBookingShowtime(null)} toast={toast} />
+      )}
+      {detailShowtime && (
+        <ShowtimeDetailModal showtime={detailShowtime}
+          movie={{ title: detailShowtime.movieTitle }}
+          user={user}
+          onClose={() => setDetailShowtime(null)}
+          onBook={(s) => { setDetailShowtime(null); if (user) setBookingShowtime(s); else setAuthModal("login"); }} />
       )}
     </div>
   );
@@ -899,6 +914,7 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
   const [timerSec, setTimerSec] = useState(0);
   const [loading, setLoading] = useState(false);
   const [loadingSeats, setLoadingSeats] = useState(true);
+  const [createdBooking, setCreatedBooking] = useState(null);
   const timerRef = useRef(null);
   const pollRef = useRef(null);
 
@@ -922,130 +938,68 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
 
   const toggleSeat = (seat) => {
     if (seat.status === "Booked" || seat.status === "Locked") return;
-    setSelectedSeats(prev =>
-      prev.includes(seat.label) ? prev.filter(s => s !== seat.label) : [...prev, seat.label]
-    );
+    setSelectedSeats(prev => prev.includes(seat.label) ? prev.filter(s => s !== seat.label) : [...prev, seat.label]);
   };
 
   const lockSeats = async () => {
-  if (selectedSeats.length === 0) return toast("Select at least one seat", "error");
-  setLoading(true);
-  try {
-    const res = await authFetch(`${API}/seat-locks/lock`, token, {
-      method: "POST",
-      body: JSON.stringify({
-        userEmail: user.email,
-        movieTitle: movie.title,
-        hallName: showtime.hallName,
-        showtimeStartTime: showtime.startTime,
-        seats: selectedSeats,
-        lockMinutes: 10
-      })
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const secs = data.expiresInSeconds ?? Math.max(0, Math.round((new Date(data.expiresAt) - Date.now()) / 1000));
-      setTimerSec(secs);
-      timerRef.current = setInterval(() => setTimerSec(s => {
-        if (s <= 1) { clearInterval(timerRef.current); return 0; }
-        return s - 1;
-      }), 1000);
-      setStep("confirm");
-    } else {
-      // ✅ FIX: safeJson ne baca ni za 401 (prazno tijelo) ni za druge greške
-      const err = await safeJson(res);
-      if (res.status === 401) {
-        toast("Session expired — please log in again.", "error");
-      } else if (res.status === 409) {
-        toast((err.message || "Seats are no longer available") + " — seat map refreshed.", "error");
-        await fetchSeatAvailability();
-        setSelectedSeats([]);
+    if (selectedSeats.length === 0) return toast("Select at least one seat", "error");
+    setLoading(true);
+    try {
+      const res = await authFetch(`${API}/seat-locks/lock`, token, {
+        method: "POST",
+        body: JSON.stringify({ userEmail: user.email, movieTitle: movie.title, hallName: showtime.hallName, showtimeStartTime: showtime.startTime, seats: selectedSeats, lockMinutes: 10 })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const secs = data.expiresInSeconds ?? Math.max(0, Math.round((new Date(data.expiresAt) - Date.now()) / 1000));
+        setTimerSec(secs);
+        timerRef.current = setInterval(() => setTimerSec(s => { if (s <= 1) { clearInterval(timerRef.current); return 0; } return s - 1; }), 1000);
+        setStep("confirm");
       } else {
-        toast(err.message || "Could not lock seats", "error");
+        const err = await safeJson(res);
+        if (res.status === 401) toast("Session expired — please log in again.", "error");
+        else if (res.status === 409) { toast((err.message || "Seats unavailable") + " — map refreshed.", "error"); await fetchSeatAvailability(); setSelectedSeats([]); }
+        else toast(err.message || "Could not lock seats", "error");
       }
-    }
-  } catch {
-    toast("Network error — check your connection.", "error");
-  }
-  setLoading(false);
-};
+    } catch { toast("Network error.", "error"); }
+    setLoading(false);
+  };
 
   const confirmBooking = async () => {
-  setLoading(true);
-  try {
-    const res = await authFetch(`${API}/bookings`, token, {
-      method: "POST",
-      body: JSON.stringify({
-        userEmail: user.email,
-        movieTitle: movie.title,
-        hallName: showtime.hallName,
-        showtimeStartTime: showtime.startTime,
-        seats: selectedSeats
-      })
-    });
-    if (res.ok || res.status === 201) {
-      clearInterval(timerRef.current);
-      setStep("success");
-      toast("Booking confirmed! 🎬", "success");
-    } else {
-      // ✅ FIX: safeJson umjesto res.json()
-      const err = await safeJson(res);
-      if (res.status === 401) {
-        toast("Session expired — please log in again.", "error");
-      } else if (res.status === 409) {
-        toast((err.message || "Conflict") + " — please go back and re-select seats.", "error");
-        setStep("seats");
-        await fetchSeatAvailability();
-        setSelectedSeats([]);
-        pollRef.current = setInterval(fetchSeatAvailability, 5000);
+    setLoading(true);
+    try {
+      const res = await authFetch(`${API}/bookings`, token, {
+        method: "POST",
+        body: JSON.stringify({ userEmail: user.email, movieTitle: movie.title, hallName: showtime.hallName, showtimeStartTime: showtime.startTime, seats: selectedSeats })
+      });
+      if (res.ok || res.status === 201) {
+        clearInterval(timerRef.current);
+        const data = await safeJson(res);
+        setCreatedBooking(data);
+        setStep("success");
       } else {
-        toast(err.message || "Booking failed", "error");
+        const err = await safeJson(res);
+        if (res.status === 401) toast("Session expired — please log in again.", "error");
+        else if (res.status === 409) { toast((err.message || "Conflict") + " — re-select seats.", "error"); setStep("seats"); await fetchSeatAvailability(); setSelectedSeats([]); pollRef.current = setInterval(fetchSeatAvailability, 5000); }
+        else toast(err.message || "Booking failed", "error");
       }
-    }
-  } catch {
-    toast("Network error — check your connection.", "error");
-  }
-  setLoading(false);
-};
+    } catch { toast("Network error.", "error"); }
+    setLoading(false);
+  };
 
   const releaseLocks = useCallback(() => {
     if (user?.email && showtime?.id) {
-      authFetch(
-        `${API}/seat-locks/release?userEmail=${encodeURIComponent(user.email)}&showtimeId=${showtime.id}`,
-        token, { method: "DELETE" }
-      ).catch(() => {});
+      authFetch(`${API}/seat-locks/release?userEmail=${encodeURIComponent(user.email)}&showtimeId=${showtime.id}`, token, { method: "DELETE" }).catch(() => {});
     }
   }, [user, showtime, token]);
 
-  const handleClose = () => {
-    if (step === "confirm") releaseLocks();
-    clearInterval(timerRef.current);
-    clearInterval(pollRef.current);
-    onClose();
-  };
-
-  const handleBack = () => {
-    releaseLocks();
-    clearInterval(timerRef.current);
-    setStep("seats");
-    setSelectedSeats([]);
-    pollRef.current = setInterval(fetchSeatAvailability, 5000);
-    fetchSeatAvailability();
-  };
+  const handleClose = () => { if (step === "confirm") releaseLocks(); clearInterval(timerRef.current); clearInterval(pollRef.current); onClose(); };
+  const handleBack = () => { releaseLocks(); clearInterval(timerRef.current); setStep("seats"); setSelectedSeats([]); pollRef.current = setInterval(fetchSeatAvailability, 5000); fetchSeatAvailability(); };
 
   const rows = (() => {
     const rowMap = {};
-    seatMap.forEach(seat => {
-      if (!rowMap[seat.row]) rowMap[seat.row] = [];
-      rowMap[seat.row].push(seat);
-    });
-    return Object.entries(rowMap)
-      .sort(([a], [b]) => a.localeCompare(b))
-      .map(([rowLabel, seats]) => ({
-        label: rowLabel,
-        seats: seats.sort((a, b) => a.number - b.number)
-      }));
+    seatMap.forEach(seat => { if (!rowMap[seat.row]) rowMap[seat.row] = []; rowMap[seat.row].push(seat); });
+    return Object.entries(rowMap).sort(([a], [b]) => a.localeCompare(b)).map(([rowLabel, seats]) => ({ label: rowLabel, seats: seats.sort((a, b) => a.number - b.number) }));
   })();
 
   const totalPrice = selectedSeats.length * Number(showtime.price);
@@ -1057,7 +1011,7 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
           <div className="modal-title">
             {step === "seats" && "Choose Your Seats"}
             {step === "confirm" && "Confirm Booking"}
-            {step === "success" && "Booking Created — Awaiting Payment"}
+            {step === "success" && "Booking Created"}
           </div>
           <button className="modal-close" onClick={handleClose}>×</button>
         </div>
@@ -1065,41 +1019,26 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
           {step === "seats" && (
             <>
               <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1.25rem" }}>
-                <strong style={{ color: "var(--cream)" }}>{movie.title}</strong>
-                {" · "}{showtime.hallName}
-                {" · "}{fmtDate(showtime.startTime, { day: "numeric", month: "short" })} {fmtTime(showtime.startTime)}
+                <strong style={{ color: "var(--cream)" }}>{movie.title}</strong>{" · "}{showtime.hallName}{" · "}{fmtDate(showtime.startTime, { day: "numeric", month: "short" })} {fmtTime(showtime.startTime)}
               </div>
-              <div className="poll-indicator">
-                <div className="poll-dot" />
-                <span>Live availability — updates every 5 seconds</span>
-              </div>
+              <div className="poll-indicator"><div className="poll-dot" /><span>Live availability — updates every 5 seconds</span></div>
               {loadingSeats ? <div className="spinner" /> : rows.length === 0 ? (
-                <div className="empty-state"><p>Could not load seat map. Please close and try again.</p></div>
+                <div className="empty-state"><p>Could not load seat map.</p></div>
               ) : (
                 <div className="seat-map-container">
-                  <div className="screen-3d">
-                    <div className="screen-surface">SCREEN</div>
-                    <div className="screen-glow" />
-                  </div>
+                  <div className="screen-3d"><div className="screen-surface">SCREEN</div><div className="screen-glow" /></div>
                   <div className="seats-grid">
                     {rows.map(row => (
                       <div key={row.label} className="seat-row">
                         <span className="seat-row-label">{row.label}</span>
                         {row.seats.map(seat => {
                           const isSelected = selectedSeats.includes(seat.label);
-                          const seatClass = seat.status === "Booked" ? "seat-booked"
-                            : seat.status === "Locked" ? "seat-locked"
-                            : seat.status === "MyLock" ? "seat-mylock"
-                            : isSelected ? "seat-selected"
-                            : "seat-available";
+                          const seatClass = seat.status === "Booked" ? "seat-booked" : seat.status === "Locked" ? "seat-locked" : seat.status === "MyLock" ? "seat-mylock" : isSelected ? "seat-selected" : "seat-available";
                           return (
-                            <button
-                              key={seat.label}
-                              className={`seat ${seat.seatType === "VIP" ? "seat-vip" : ""} ${seatClass}`}
+                            <button key={seat.label} className={`seat ${seat.seatType === "VIP" ? "seat-vip" : ""} ${seatClass}`}
                               onClick={() => toggleSeat(seat)}
                               title={`${seat.label}${seat.seatType === "VIP" ? " (VIP)" : ""} — ${seat.status}`}
-                              disabled={seat.status === "Booked" || seat.status === "Locked"}
-                            >
+                              disabled={seat.status === "Booked" || seat.status === "Locked"}>
                               {seat.number}
                             </button>
                           );
@@ -1113,7 +1052,6 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
                     <div className="legend-item"><div className="legend-dot" style={{ background: "var(--rose)" }} />Selected</div>
                     <div className="legend-item"><div className="legend-dot" style={{ background: "rgba(255,255,255,0.05)" }} />Taken</div>
                     <div className="legend-item"><div className="legend-dot" style={{ background: "rgba(212,168,67,0.2)", border: "1px solid rgba(212,168,67,0.4)" }} />Locked</div>
-                    <div className="legend-item"><div className="legend-dot" style={{ background: "rgba(204,139,134,0.15)", border: "1px solid rgba(204,139,134,0.4)" }} />My lock</div>
                   </div>
                 </div>
               )}
@@ -1132,15 +1070,9 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
           {step === "confirm" && (
             <>
               {timerSec > 0 ? (
-                <div className="lock-timer">
-                  <span>⏱</span>
-                  <span>Seats reserved for <strong>{Math.floor(timerSec / 60)}:{String(timerSec % 60).padStart(2, "0")}</strong> — complete your booking</span>
-                </div>
+                <div className="lock-timer"><span>⏱</span><span>Seats reserved for <strong>{Math.floor(timerSec / 60)}:{String(timerSec % 60).padStart(2, "0")}</strong> — complete your booking</span></div>
               ) : (
-                <div className="lock-timer" style={{ borderColor: "rgba(204,102,102,0.4)", background: "rgba(204,102,102,0.1)", color: "#cc6666" }}>
-                  <span>⚠️</span>
-                  <span>Seat reservation expired. Please go back and re-select.</span>
-                </div>
+                <div className="lock-timer" style={{ borderColor: "rgba(204,102,102,0.4)", background: "rgba(204,102,102,0.1)", color: "#cc6666" }}><span>⚠️</span><span>Seat reservation expired. Go back and re-select.</span></div>
               )}
               <div style={{ background: "rgba(204,139,134,0.06)", borderRadius: 12, padding: "1.25rem", marginBottom: "1.25rem" }}>
                 <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.15rem", color: "var(--cream)", marginBottom: "1rem" }}>{movie.title}</div>
@@ -1151,10 +1083,7 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
                   ["Seats", selectedSeats.join(", ")],
                   ["Total", formatEur(totalPrice)],
                 ].map(([k, v]) => (
-                  <div key={k} className="booking-summary-row">
-                    <span style={{ color: "var(--text-muted)" }}>{k}</span>
-                    <span className="booking-summary-val">{v}</span>
-                  </div>
+                  <div key={k} className="booking-summary-row"><span style={{ color: "var(--text-muted)" }}>{k}</span><span className="booking-summary-val">{v}</span></div>
                 ))}
               </div>
               <div style={{ display: "flex", gap: "0.75rem" }}>
@@ -1167,19 +1096,86 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
           )}
           {step === "success" && (
             <div style={{ textAlign: "center", padding: "1.5rem 0" }}>
-              <div style={{ fontSize: "3.5rem", marginBottom: "1rem" }}>🎬</div>
-              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.5rem", color: "var(--cream)", marginBottom: "0.75rem" }}>Enjoy the show!</h2>
+              <div style={{ fontSize: "3.5rem", marginBottom: "1rem" }}>🎟</div>
+              <h2 style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.5rem", color: "var(--cream)", marginBottom: "0.75rem" }}>Booking Received!</h2>
               <p style={{ color: "var(--text-muted)", marginBottom: "0.5rem" }}><strong style={{ color: "var(--cream)" }}>{movie.title}</strong></p>
               <p style={{ color: "var(--text-muted)", fontSize: "0.9rem", marginBottom: "0.3rem" }}>Seats: {selectedSeats.join(", ")}</p>
-              <p style={{ color: "var(--rose)", fontSize: "0.9rem", marginBottom: "0.3rem" }}>
+              <p style={{ color: "var(--rose)", fontSize: "0.9rem", marginBottom: "1rem" }}>
                 {fmtDate(showtime.startTime, { weekday: "long", day: "numeric", month: "long" })} · {fmtTime(showtime.startTime)}
               </p>
-              <p style={{ color: "var(--text-muted)", fontSize: "0.85rem", marginBottom: "2rem" }}>
-                A confirmation email with your QR code has been sent to your inbox.
-              </p>
+              <div style={{ background: "rgba(212,168,67,0.1)", border: "1px solid rgba(212,168,67,0.25)", borderRadius: "10px", padding: "1rem", marginBottom: "1.5rem", fontSize: "0.88rem", color: "#d4a843" }}>
+                ⚠️ Your booking is <strong>pending payment</strong>. Please complete the payment in <em>My Bookings</em> to confirm your reservation.
+              </div>
               <button className="btn-primary" style={{ padding: "0.75rem 2rem" }} onClick={handleClose}>Done</button>
             </div>
           )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── PAYMENT MODAL ───
+function PaymentModal({ booking, token, toast, onClose, onSuccess }) {
+  const [method, setMethod] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const pay = async () => {
+    if (!method) return toast("Please select a payment method", "error");
+    setLoading(true);
+    try {
+      const r = await authFetch(`${API}/payments`, token, {
+        method: "POST",
+        body: JSON.stringify({
+          userEmail: booking.userEmail,
+          movieTitle: booking.movieTitle,
+          hallName: booking.hallName,
+          showtimeStartTime: booking.showtimeStart,
+          method
+        })
+      });
+      if (r.ok || r.status === 201) {
+        toast("Payment successful! Confirmation email sent. 🎬", "success");
+        onSuccess();
+        onClose();
+      } else {
+        const err = await safeJson(r);
+        toast(err.message || "Payment failed", "error");
+      }
+    } catch { toast("Connection error", "error"); }
+    setLoading(false);
+  };
+
+  const total = formatEur(booking.totalPrice);
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-header">
+          <div className="modal-title">Pay for Booking</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.1rem", color: "var(--cream)", marginBottom: "0.5rem" }}>{booking.movieTitle}</div>
+          <div style={{ fontSize: "0.85rem", color: "var(--text-muted)", marginBottom: "1.25rem" }}>
+            {booking.hallName} · {fmtDate(booking.showtimeStart, { day: "numeric", month: "short" })} {fmtTime(booking.showtimeStart)}<br />
+            Seats: {booking.seats?.map(s => s.seatLabel).join(", ")}
+          </div>
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.5rem", color: "var(--rose)", marginBottom: "1.25rem" }}>Total: {total}</div>
+
+          <div style={{ fontSize: "0.8rem", color: "var(--text-muted)", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "0.75rem" }}>Select Payment Method</div>
+          <div className="method-grid">
+            {PAYMENT_METHODS.map(m => (
+              <button key={m} className={`method-btn ${method === m ? "selected" : ""}`} onClick={() => setMethod(m)}>
+                {m === "CreditCard" ? "💳 Credit Card" : m === "DebitCard" ? "💳 Debit Card" : m === "PayPal" ? "🅿️ PayPal" : "🎫 Voucher"}
+              </button>
+            ))}
+          </div>
+
+          <button className="btn-success" style={{ width: "100%", padding: "0.75rem", marginTop: "1rem" }}
+            onClick={pay} disabled={loading || !method}>
+            {loading ? "Processing..." : `Pay ${total}`}
+          </button>
         </div>
       </div>
     </div>
@@ -1190,37 +1186,37 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
 function MyBookingsPage({ user, token, toast }) {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [payBooking, setPayBooking] = useState(null);
+  const [detailBooking, setDetailBooking] = useState(null);
 
   const load = () => {
     authFetch(`${API}/bookings?userEmail=${encodeURIComponent(user.email)}&pageSize=50`, token)
       .then(r => r.json())
       .then(d => { setBookings(d.items || d); setLoading(false); })
-      .catch(() => { setLoading(false); setBookings(demoBookings(user.email)); });
+      .catch(() => { setLoading(false); });
   };
 
   useEffect(() => { load(); }, []);
 
   const cancel = async (id) => {
-  try {
-    const r = await authFetch(`${API}/bookings/${id}/cancel`, token, { method: "PATCH" });
-    if (r.ok || r.status === 204) { toast("Booking cancelled", "info"); load(); }
-    else {
-      const e = await safeJson(r);
-      if (r.status === 401) toast("Session expired — please log in again.", "error");
-      else toast(e.message || "Cannot cancel", "error");
-    }
-  } catch { toast("Connection error", "error"); }
-};
+    try {
+      const r = await authFetch(`${API}/bookings/${id}/cancel`, token, { method: "PATCH" });
+      if (r.ok || r.status === 204) { toast("Booking cancelled", "info"); load(); }
+      else {
+        const e = await safeJson(r);
+        if (r.status === 401) toast("Session expired — please log in again.", "error");
+        else toast(e.message || "Cannot cancel", "error");
+      }
+    } catch { toast("Connection error", "error"); }
+  };
 
   return (
     <div className="section">
-      <div className="section-header">
-        <h1 className="section-title">My Bookings</h1>
-      </div>
+      <div className="section-header"><h1 className="section-title">My Bookings</h1></div>
       {loading ? <div className="spinner" /> : bookings.length === 0 ? (
         <div className="empty-state"><div className="empty-state-icon">🎟</div><p>No bookings yet</p></div>
       ) : bookings.map(b => (
-        <div key={b.id} className="booking-card">
+        <div key={b.id} className="booking-card" onClick={() => setDetailBooking(b)}>
           <div className="booking-card-header">
             <div>
               <div className="booking-movie-title">{b.movieTitle}</div>
@@ -1229,18 +1225,86 @@ function MyBookingsPage({ user, token, toast }) {
               </div>
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: "0.4rem" }}>
-              <span className={`status-badge status-${(b.status || "confirmed").toLowerCase()}`}>{b.status || "Confirmed"}</span>
+              <span className={`status-badge status-${statusClass(b.status)}`}>{displayStatus(b.status)}</span>
               <span style={{ color: "var(--rose)", fontSize: "0.9rem", fontWeight: 600 }}>{formatEur(b.totalPrice)}</span>
             </div>
           </div>
           <div className="booking-seats">
             {b.seats?.map(s => <span key={s.seatLabel} className="seat-tag">{s.seatLabel}</span>)}
           </div>
-          {(b.status === "Confirmed" || b.status === "Pending") && new Date(b.showtimeStart) > new Date() && (
-  <button className="btn-cancel" style={{ marginTop: "0.75rem" }} onClick={() => cancel(b.id)}>Cancel booking</button>
-)}
+          <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.75rem" }} onClick={e => e.stopPropagation()}>
+            {/* Pay button — samo za Pending rezervacije */}
+            {b.status === "Pending" && (
+              <button className="btn-success" style={{ fontSize: "0.8rem", padding: "0.35rem 0.8rem" }}
+                onClick={() => setPayBooking(b)}>
+                💳 Pay Now
+              </button>
+            )}
+            {/* Cancel — samo za Pending (neplacene) rezervacije */}
+            {b.status === "Pending" && (
+              <button className="btn-cancel" onClick={() => cancel(b.id)}>Cancel</button>
+            )}
+            {/* Za placene rezervacije — informacija o refundu */}
+            {(b.status === "Confirmed" || b.status === "CheckedIn") && (
+              <div className="info-box" style={{ marginTop: 0, padding: "0.35rem 0.8rem" }}>
+                To cancel, contact admin for a refund
+              </div>
+            )}
+          </div>
         </div>
       ))}
+
+      {payBooking && (
+        <PaymentModal booking={payBooking} token={token} toast={toast}
+          onClose={() => setPayBooking(null)} onSuccess={load} />
+      )}
+      {detailBooking && (
+        <BookingDetailModal booking={detailBooking} onClose={() => setDetailBooking(null)} />
+      )}
+    </div>
+  );
+}
+
+// ─── BOOKING DETAIL MODAL ───
+function BookingDetailModal({ booking, onClose }) {
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-header">
+          <div className="modal-title">Booking Details</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div style={{ fontFamily: "'Playfair Display', serif", fontSize: "1.2rem", color: "var(--cream)", marginBottom: "1.25rem" }}>{booking.movieTitle}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", marginBottom: "1.25rem" }}>
+            <span className={`status-badge status-${statusClass(booking.status)}`}>{displayStatus(booking.status)}</span>
+            <span style={{ color: "var(--rose)", fontWeight: 600, fontSize: "1rem" }}>{formatEur(booking.totalPrice)}</span>
+          </div>
+          {[
+            ["Hall", booking.hallName],
+            ["Date", fmtDate(booking.showtimeStart, { weekday: "long", day: "numeric", month: "long", year: "numeric" })],
+            ["Time", fmtTime(booking.showtimeStart)],
+            ["Seats", booking.seats?.map(s => s.seatLabel).join(", ")],
+            ["Booked on", new Date(booking.createdAt).toLocaleString("en-GB", { timeZone: BELGRADE_TZ, day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })],
+          ].map(([k, v]) => (
+            <div key={k} className="verify-info-row">
+              <span className="verify-info-label">{k}</span>
+              <span className="verify-info-val">{v}</span>
+            </div>
+          ))}
+          {booking.status === "Pending" && (
+            <div style={{ marginTop: "1rem", padding: "0.85rem", background: "rgba(212,168,67,0.1)", border: "1px solid rgba(212,168,67,0.25)", borderRadius: "10px", fontSize: "0.85rem", color: "#d4a843" }}>
+              ⚠️ This booking is awaiting payment. Use the <strong>Pay Now</strong> button to confirm your reservation.
+            </div>
+          )}
+          {(booking.status === "Confirmed" || booking.status === "CheckedIn") && (
+            <div style={{ marginTop: "1rem", padding: "0.85rem", background: "rgba(125,184,125,0.1)", border: "1px solid rgba(125,184,125,0.25)", borderRadius: "10px", fontSize: "0.85rem", color: "#7db87d" }}>
+              ✅ Payment confirmed. Your ticket has been sent to your email.
+            </div>
+          )}
+          <button className="btn-outline" style={{ width: "100%", marginTop: "1.5rem", padding: "0.65rem" }} onClick={onClose}>Close</button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -1254,9 +1318,12 @@ function AdminPage({ token, toast }) {
   const [payments, setPayments] = useState([]);
   const [halls, setHalls] = useState([]);
   const [loading, setLoading] = useState(true);
+
   const [showAddMovie, setShowAddMovie] = useState(false);
+  const [editMovie, setEditMovie] = useState(null);
   const [showAddShowtime, setShowAddShowtime] = useState(false);
   const [showAddHall, setShowAddHall] = useState(false);
+
   const [newMovie, setNewMovie] = useState({ title: "", description: "", genre: "Drama", durationMinutes: 120, rating: 7.5 });
   const [newShowtime, setNewShowtime] = useState({ movieTitle: "", hallName: "", startTime: "", price: 10 });
   const [newHall, setNewHall] = useState({ name: "", rows: 8, seatsPerRow: 10 });
@@ -1291,12 +1358,25 @@ function AdminPage({ token, toast }) {
       });
       if (r.ok || r.status === 201) {
         toast("Movie added!", "success"); setShowAddMovie(false);
+        setNewMovie({ title: "", description: "", genre: "Drama", durationMinutes: 120, rating: 7.5 });
         const m = await fetch(`${API}/movies?pageSize=100`).then(r2 => r2.json()).catch(() => ({ items: movies }));
         setMovies(m.items || m);
-      } else {
-        const err = await safeJson(r);
-        toast(r.status === 401 ? "Session expired" : err.message || JSON.stringify(err), "error");
-      }
+      } else { const err = await safeJson(r); toast(r.status === 401 ? "Session expired" : err.message || JSON.stringify(err), "error"); }
+    } catch { toast("Network error", "error"); }
+  };
+
+  const updateMovie = async (e) => {
+    e.preventDefault();
+    try {
+      const r = await authFetch(`${API}/movies/${editMovie.id}`, token, {
+        method: "PUT",
+        body: JSON.stringify({ title: editMovie.title, description: editMovie.description, genre: editMovie.genre, durationMinutes: Number(editMovie.durationMinutes), rating: Number(editMovie.rating) })
+      });
+      if (r.ok || r.status === 204) {
+        toast("Movie updated!", "success"); setEditMovie(null);
+        const m = await fetch(`${API}/movies?pageSize=100`).then(r2 => r2.json()).catch(() => ({ items: movies }));
+        setMovies(m.items || m);
+      } else { const err = await safeJson(r); toast(r.status === 401 ? "Session expired" : err.message || "Error updating", "error"); }
     } catch { toast("Network error", "error"); }
   };
 
@@ -1304,13 +1384,6 @@ function AdminPage({ token, toast }) {
     if (!confirm("Delete this movie?")) return;
     const r = await authFetch(`${API}/movies/${id}`, token, { method: "DELETE" }).catch(() => null);
     if (r?.ok || r?.status === 204) { setMovies(m => m.filter(x => x.id !== id)); toast("Deleted", "info"); }
-    else toast("Could not delete", "error");
-  };
-
-  const deleteShowtime = async (id) => {
-    if (!confirm("Delete this showtime?")) return;
-    const r = await authFetch(`${API}/showtimes/${id}`, token, { method: "DELETE" }).catch(() => null);
-    if (r?.ok || r?.status === 204) { setShowtimes(s => s.filter(x => x.id !== id)); toast("Deleted", "info"); }
     else toast("Could not delete", "error");
   };
 
@@ -1324,42 +1397,34 @@ function AdminPage({ token, toast }) {
         body: JSON.stringify({ ...newShowtime, startTime: startTimeUtc, price: Number(newShowtime.price) })
       });
       if (r.ok || r.status === 201) {
-        toast("Showtime added!", "success");
-        setShowAddShowtime(false);
+        toast("Showtime added!", "success"); setShowAddShowtime(false);
         setNewShowtime({ movieTitle: "", hallName: "", startTime: "", price: 10 });
         const s = await fetch(`${API}/showtimes`).then(r2 => r2.json()).catch(() => showtimes);
         setShowtimes(Array.isArray(s) ? s : s.items || []);
-      } else {
-        const err = await safeJson(r);
-        toast(r.status === 401 ? "Session expired" : err.message || "Error creating showtime", "error");
-      }
+      } else { const err = await safeJson(r); toast(r.status === 401 ? "Session expired" : err.message || "Error", "error"); }
     } catch { toast("Connection error", "error"); }
+  };
+
+  const deleteShowtime = async (id) => {
+    if (!confirm("Delete this showtime?")) return;
+    const r = await authFetch(`${API}/showtimes/${id}`, token, { method: "DELETE" }).catch(() => null);
+    if (r?.ok || r?.status === 204) { setShowtimes(s => s.filter(x => x.id !== id)); toast("Deleted", "info"); }
+    else toast("Could not delete", "error");
   };
 
   const addHall = async (e) => {
     e.preventDefault();
     try {
-      const rows = Number(newHall.rows);
-      const seatsPerRow = Number(newHall.seatsPerRow);
+      const rows = Number(newHall.rows), seatsPerRow = Number(newHall.seatsPerRow);
       const r = await authFetch(`${API}/halls`, token, {
         method: "POST",
-        body: JSON.stringify({
-          name: newHall.name,
-          capacity: rows * seatsPerRow,
-          rows,
-          seatsPerRow
-        })
+        body: JSON.stringify({ name: newHall.name, capacity: rows * seatsPerRow, rows, seatsPerRow })
       });
       if (r.ok || r.status === 201) {
-        toast("Hall created!", "success");
-        setShowAddHall(false);
-        setNewHall({ name: "", rows: 8, seatsPerRow: 10 });
+        toast("Hall created!", "success"); setShowAddHall(false); setNewHall({ name: "", rows: 8, seatsPerRow: 10 });
         const hl = await authFetch(`${API}/halls`, token).then(r2 => r2.json()).catch(() => halls);
         setHalls(Array.isArray(hl) ? hl : []);
-      } else {
-        const err = await safeJson(r);
-        toast(r.status === 401 ? "Session expired" : err.message || "Error creating hall", "error");
-      }
+      } else { const err = await safeJson(r); toast(r.status === 401 ? "Session expired" : err.message || "Error", "error"); }
     } catch { toast("Connection error", "error"); }
   };
 
@@ -1371,45 +1436,21 @@ function AdminPage({ token, toast }) {
   };
 
   const refundPayment = async (id) => {
-    if (!confirm("Process refund for this payment?")) return;
+    if (!confirm("Process refund? The booking will be cancelled.")) return;
     const r = await authFetch(`${API}/payments/${id}/refund`, token, { method: "PATCH" }).catch(() => null);
     if (r?.ok || r?.status === 204) {
-      toast("Refund processed", "success");
-      setPayments(p => p.map(x => x.id === id ? { ...x, status: "Refunded" } : x));
+      toast("Refund processed — booking cancelled", "success");
+      loadData();
     } else {
       const err = await safeJson(r).catch(() => ({}));
       toast(err?.message || "Could not process refund", "error");
     }
   };
 
-  const processPayment = async (booking) => {
-    const method = prompt("Payment method (CreditCard / DebitCard / PayPal / Voucher):", "CreditCard");
-    if (!method) return;
-    try {
-      const r = await authFetch(`${API}/payments`, token, {
-        method: "POST",
-        body: JSON.stringify({
-          userEmail: booking.userEmail,
-          movieTitle: booking.movieTitle,
-          hallName: booking.hallName,
-          showtimeStartTime: booking.showtimeStart,
-          method
-        })
-      });
-      if (r.ok || r.status === 201) {
-        toast("Payment processed! Confirmation email sent.", "success");
-        loadData();
-      } else {
-        const err = await safeJson(r);
-        toast(err.message || "Payment failed", "error");
-      }
-    } catch { toast("Connection error", "error"); }
-  };
-
   const stats = {
     totalBookings: bookings.length,
-    confirmed: bookings.filter(b => b.status === "Confirmed").length,
-    checkedIn: bookings.filter(b => b.status === "CheckedIn").length,
+    confirmed: bookings.filter(b => b.status === "Confirmed" || b.status === "CheckedIn").length,
+    pending: bookings.filter(b => b.status === "Pending").length,
     revenue: payments.filter(p => p.status === "Completed").reduce((s, p) => s + Number(p.amount || 0), 0),
     movies: movies.length,
     halls: halls.length,
@@ -1421,16 +1462,16 @@ function AdminPage({ token, toast }) {
       <div className="stats-grid">
         <div className="stat-card"><div className="stat-label">Total Bookings</div><div className="stat-val">{stats.totalBookings}</div></div>
         <div className="stat-card"><div className="stat-label">Confirmed</div><div className="stat-val stat-accent">{stats.confirmed}</div></div>
-        <div className="stat-card"><div className="stat-label">Checked In</div><div className="stat-val" style={{ color: "#2980b9" }}>{stats.checkedIn}</div></div>
-        <div className="stat-card"><div className="stat-label">Revenue (paid)</div><div className="stat-val">€{stats.revenue.toFixed(2)}</div></div>
-        <div className="stat-card"><div className="stat-label">Films</div><div className="stat-val">{stats.movies}</div></div>
+        <div className="stat-card"><div className="stat-label">Pending Payment</div><div className="stat-val" style={{ color: "#d4a843" }}>{stats.pending}</div></div>
+        <div className="stat-card"><div className="stat-label">Revenue</div><div className="stat-val">€{stats.revenue.toFixed(2)}</div></div>
+        <div className="stat-card"><div className="stat-label">Movies</div><div className="stat-val">{stats.movies}</div></div>
         <div className="stat-card"><div className="stat-label">Halls</div><div className="stat-val">{stats.halls}</div></div>
       </div>
 
       <div className="admin-tabs">
         {["bookings", "movies", "showtimes", "halls", "payments"].map(t => (
           <button key={t} className={`admin-tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
-            {t === "bookings" ? "Bookings" : t === "movies" ? "Films" : t === "showtimes" ? "Showtimes" : t === "halls" ? "Halls" : "Payments"}
+            {t.charAt(0).toUpperCase() + t.slice(1)}
           </button>
         ))}
       </div>
@@ -1440,28 +1481,17 @@ function AdminPage({ token, toast }) {
           {tab === "bookings" && (
             <div style={{ overflowX: "auto" }}>
               <table className="data-table">
-                <thead><tr><th>Film</th><th>User</th><th>Hall</th><th>Date</th><th>Seats</th><th>Total</th><th>Status</th><th></th></tr></thead>
+                <thead><tr><th>Movie</th><th>User</th><th>Hall</th><th>Date</th><th>Seats</th><th>Total</th><th>Status</th></tr></thead>
                 <tbody>
                   {bookings.map(b => (
                     <tr key={b.id}>
                       <td style={{ color: "var(--cream)", fontWeight: 500 }}>{b.movieTitle}</td>
                       <td><div>{b.userFullName}</div><div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{b.userEmail}</div></td>
                       <td>{b.hallName}</td>
-                      <td style={{ fontSize: "0.82rem" }}>
-                        {fmtDate(b.showtimeStart, { day: "numeric", month: "short" })}<br />
-                        <span style={{ color: "var(--text-muted)" }}>{fmtTime(b.showtimeStart)}</span>
-                      </td>
+                      <td style={{ fontSize: "0.82rem" }}>{fmtDate(b.showtimeStart, { day: "numeric", month: "short" })}<br /><span style={{ color: "var(--text-muted)" }}>{fmtTime(b.showtimeStart)}</span></td>
                       <td>{b.seats?.map(s => s.seatLabel).join(", ")}</td>
                       <td style={{ color: "var(--rose)", fontWeight: 600 }}>{formatEur(b.totalPrice)}</td>
-                      <td><span className={`status-badge status-${(b.status || "confirmed").toLowerCase()}`}>{b.status || "Confirmed"}</span></td>
-                      <td>
-                        {b.status === "Pending" && (
-  <button className="btn-primary" style={{ fontSize: "0.75rem", padding: "0.3rem 0.7rem" }}
-    onClick={() => processPayment(b)}>
-    💳 Pay
-  </button>
-)}
-                      </td>
+                      <td><span className={`status-badge status-${statusClass(b.status)}`}>{displayStatus(b.status)}</span></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1471,10 +1501,10 @@ function AdminPage({ token, toast }) {
 
           {tab === "movies" && (
             <>
-              <button className="btn-primary" style={{ marginBottom: "1.5rem" }} onClick={() => setShowAddMovie(!showAddMovie)}>+ Add Film</button>
+              <button className="btn-primary" style={{ marginBottom: "1.5rem" }} onClick={() => { setShowAddMovie(!showAddMovie); setEditMovie(null); }}>+ Add Movie</button>
               {showAddMovie && (
                 <div className="add-panel">
-                  <div className="add-panel-title">New Film</div>
+                  <div className="add-panel-title">New Movie</div>
                   <form onSubmit={addMovie}>
                     <div className="form-row">
                       <div className="form-group"><label className="form-label">Title</label><input className="form-input" value={newMovie.title} onChange={e => setNewMovie({ ...newMovie, title: e.target.value })} required /></div>
@@ -1489,7 +1519,31 @@ function AdminPage({ token, toast }) {
                       <div className="form-group"><label className="form-label">Duration (min)</label><input type="number" className="form-input" value={newMovie.durationMinutes} onChange={e => setNewMovie({ ...newMovie, durationMinutes: e.target.value })} /></div>
                       <div className="form-group"><label className="form-label">Rating (0–10)</label><input type="number" step="0.1" min="0" max="10" className="form-input" value={newMovie.rating} onChange={e => setNewMovie({ ...newMovie, rating: e.target.value })} /></div>
                     </div>
-                    <button type="submit" className="btn-primary">Save Film</button>
+                    <button type="submit" className="btn-primary">Save Movie</button>
+                  </form>
+                </div>
+              )}
+              {editMovie && (
+                <div className="add-panel" style={{ borderColor: "rgba(204,139,134,0.4)" }}>
+                  <div className="add-panel-title">Edit Movie — {editMovie.title}</div>
+                  <form onSubmit={updateMovie}>
+                    <div className="form-row">
+                      <div className="form-group"><label className="form-label">Title</label><input className="form-input" value={editMovie.title} onChange={e => setEditMovie({ ...editMovie, title: e.target.value })} required /></div>
+                      <div className="form-group"><label className="form-label">Genre</label>
+                        <select className="form-input" value={editMovie.genre} onChange={e => setEditMovie({ ...editMovie, genre: e.target.value })}>
+                          {GENRES.filter(g => g !== "All").map(g => <option key={g}>{g}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="form-group"><label className="form-label">Description</label><textarea className="form-input" rows={2} value={editMovie.description} onChange={e => setEditMovie({ ...editMovie, description: e.target.value })} /></div>
+                    <div className="form-row">
+                      <div className="form-group"><label className="form-label">Duration (min)</label><input type="number" className="form-input" value={editMovie.durationMinutes} onChange={e => setEditMovie({ ...editMovie, durationMinutes: e.target.value })} /></div>
+                      <div className="form-group"><label className="form-label">Rating (0–10)</label><input type="number" step="0.1" min="0" max="10" className="form-input" value={editMovie.rating} onChange={e => setEditMovie({ ...editMovie, rating: e.target.value })} /></div>
+                    </div>
+                    <div style={{ display: "flex", gap: "0.75rem" }}>
+                      <button type="submit" className="btn-primary">Update Movie</button>
+                      <button type="button" className="btn-outline" onClick={() => setEditMovie(null)}>Cancel</button>
+                    </div>
                   </form>
                 </div>
               )}
@@ -1503,7 +1557,11 @@ function AdminPage({ token, toast }) {
                       <td>{m.durationMinutes} min</td>
                       <td><span className="status-badge" style={{ background: "rgba(204,139,134,0.1)", color: "var(--rose)" }}>★ {Number(m.rating).toFixed(1)}</span></td>
                       <td>{m.showtimeCount}</td>
-                      <td><button className="btn-cancel" onClick={() => deleteMovie(m.id)}>Delete</button></td>
+                      <td style={{ display: "flex", gap: "0.5rem" }}>
+                        <button className="btn-outline" style={{ fontSize: "0.78rem", padding: "0.3rem 0.7rem" }}
+                          onClick={() => { setEditMovie({ ...m }); setShowAddMovie(false); }}>Edit</button>
+                        <button className="btn-cancel" onClick={() => deleteMovie(m.id)}>Delete</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1519,9 +1577,9 @@ function AdminPage({ token, toast }) {
                   <div className="add-panel-title">New Showtime</div>
                   <form onSubmit={addShowtime}>
                     <div className="form-row">
-                      <div className="form-group"><label className="form-label">Film</label>
+                      <div className="form-group"><label className="form-label">Movie</label>
                         <select className="form-input" value={newShowtime.movieTitle} onChange={e => setNewShowtime({ ...newShowtime, movieTitle: e.target.value })} required>
-                          <option value="">Select film</option>
+                          <option value="">Select movie</option>
                           {movies.map(m => <option key={m.id} value={m.title}>{m.title}</option>)}
                         </select>
                       </div>
@@ -1541,16 +1599,13 @@ function AdminPage({ token, toast }) {
                 </div>
               )}
               <table className="data-table">
-                <thead><tr><th>Film</th><th>Hall</th><th>Date & Time</th><th>Price</th><th>Seats left</th><th></th></tr></thead>
+                <thead><tr><th>Movie</th><th>Hall</th><th>Date & Time</th><th>Price</th><th>Seats left</th><th></th></tr></thead>
                 <tbody>
                   {showtimes.map(s => (
                     <tr key={s.id}>
                       <td style={{ color: "var(--cream)", fontWeight: 500 }}>{s.movieTitle}</td>
                       <td>{s.hallName}</td>
-                      <td style={{ fontSize: "0.82rem" }}>
-                        {fmtDate(s.startTime, { day: "numeric", month: "short", year: "numeric" })}<br />
-                        <span style={{ color: "var(--text-muted)" }}>{fmtTime(s.startTime)}</span>
-                      </td>
+                      <td style={{ fontSize: "0.82rem" }}>{fmtDate(s.startTime, { day: "numeric", month: "short", year: "numeric" })}<br /><span style={{ color: "var(--text-muted)" }}>{fmtTime(s.startTime)}</span></td>
                       <td style={{ color: "var(--rose)" }}>{formatEur(s.price)}</td>
                       <td><span className={s.availableSeats > 10 ? "avail-good" : "avail-low"}>{s.availableSeats}</span></td>
                       <td><button className="btn-cancel" onClick={() => deleteShowtime(s.id)}>Delete</button></td>
@@ -1568,19 +1623,10 @@ function AdminPage({ token, toast }) {
                 <div className="add-panel">
                   <div className="add-panel-title">New Hall</div>
                   <form onSubmit={addHall}>
-                    <div className="form-group">
-                      <label className="form-label">Hall Name</label>
-                      <input className="form-input" value={newHall.name} onChange={e => setNewHall({ ...newHall, name: e.target.value })} required placeholder="e.g. Hall 3" />
-                    </div>
+                    <div className="form-group"><label className="form-label">Hall Name</label><input className="form-input" value={newHall.name} onChange={e => setNewHall({ ...newHall, name: e.target.value })} required placeholder="e.g. Hall 3" /></div>
                     <div className="form-row">
-                      <div className="form-group">
-                        <label className="form-label">Rows</label>
-                        <input type="number" min="1" max="30" className="form-input" value={newHall.rows} onChange={e => setNewHall({ ...newHall, rows: e.target.value })} required />
-                      </div>
-                      <div className="form-group">
-                        <label className="form-label">Seats per Row</label>
-                        <input type="number" min="1" max="30" className="form-input" value={newHall.seatsPerRow} onChange={e => setNewHall({ ...newHall, seatsPerRow: e.target.value })} required />
-                      </div>
+                      <div className="form-group"><label className="form-label">Rows</label><input type="number" min="1" max="30" className="form-input" value={newHall.rows} onChange={e => setNewHall({ ...newHall, rows: e.target.value })} required /></div>
+                      <div className="form-group"><label className="form-label">Seats per Row</label><input type="number" min="1" max="30" className="form-input" value={newHall.seatsPerRow} onChange={e => setNewHall({ ...newHall, seatsPerRow: e.target.value })} required /></div>
                     </div>
                     <div style={{ fontSize: "0.82rem", color: "var(--text-muted)", marginBottom: "1rem" }}>
                       Total capacity: <strong style={{ color: "var(--rose)" }}>{Number(newHall.rows) * Number(newHall.seatsPerRow)} seats</strong>
@@ -1590,7 +1636,7 @@ function AdminPage({ token, toast }) {
                 </div>
               )}
               <table className="data-table">
-                <thead><tr><th>Name</th><th>Capacity</th><th>Seats generated</th><th></th></tr></thead>
+                <thead><tr><th>Name</th><th>Capacity</th><th>Seats</th><th></th></tr></thead>
                 <tbody>
                   {halls.length === 0 ? (
                     <tr><td colSpan={4} style={{ textAlign: "center", color: "var(--text-muted)", padding: "2rem" }}>No halls yet</td></tr>
@@ -1610,35 +1656,27 @@ function AdminPage({ token, toast }) {
           {tab === "payments" && (
             <div style={{ overflowX: "auto" }}>
               {payments.length === 0 ? (
-                <div className="empty-state">
-                  <div className="empty-state-icon">💳</div>
-                  <p>No payments yet. Use the 💳 Pay button in Bookings tab to process a payment.</p>
-                </div>
+                <div className="empty-state"><div className="empty-state-icon">💳</div><p>No payments yet.</p></div>
               ) : (
                 <table className="data-table">
-                  <thead><tr><th>ID</th><th>Film</th><th>User</th><th>Amount</th><th>Method</th><th>Date</th><th>Status</th><th></th></tr></thead>
+                  <thead><tr><th>ID</th><th>Movie</th><th>User</th><th>Amount</th><th>Method</th><th>Date</th><th>Booking</th><th>Status</th><th></th></tr></thead>
                   <tbody>
                     {payments.map(p => (
                       <tr key={p.id}>
                         <td style={{ color: "var(--text-muted)", fontSize: "0.8rem" }}>#{p.id}</td>
                         <td style={{ color: "var(--cream)", fontWeight: 500 }}>{p.movieTitle}</td>
-                        <td>
-                          <div>{p.userFullName}</div>
-                          <div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{p.userEmail}</div>
-                        </td>
+                        <td><div>{p.userFullName}</div><div style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{p.userEmail}</div></td>
                         <td style={{ color: "var(--rose)", fontWeight: 600 }}>{formatEur(p.amount)}</td>
                         <td>{p.method}</td>
-                        <td style={{ fontSize: "0.82rem" }}>
-                          {fmtDate(p.paymentDate, { day: "numeric", month: "short" })}<br />
-                          <span style={{ color: "var(--text-muted)" }}>{fmtTime(p.paymentDate)}</span>
-                        </td>
+                        <td style={{ fontSize: "0.82rem" }}>{fmtDate(p.paymentDate, { day: "numeric", month: "short" })}<br /><span style={{ color: "var(--text-muted)" }}>{fmtTime(p.paymentDate)}</span></td>
+                        <td><span className={`status-badge status-${statusClass(p.bookingStatus)}`}>{displayStatus(p.bookingStatus)}</span></td>
                         <td>
-                          <span className={`status-badge ${p.status === "Paid" ? "status-confirmed" : p.status === "Refunded" ? "status-checkedin" : "status-pending"}`}>
+                          <span className={`status-badge ${p.status === "Completed" ? "status-confirmed" : p.status === "Refunded" ? "status-canceled" : "status-pending"}`}>
                             {p.status}
                           </span>
                         </td>
                         <td>
-                          {p.status === "Paid" && (
+                          {p.status === "Completed" && (
                             <button className="btn-cancel" onClick={() => refundPayment(p.id)}>Refund</button>
                           )}
                         </td>
@@ -1662,32 +1700,21 @@ function AuthModal({ mode, onClose, onLogin, switchMode, toast }) {
   const [error, setError] = useState("");
 
   const submit = async (e) => {
-  e.preventDefault();
-  setLoading(true); setError("");
-  try {
-    if (mode === "login") {
-      const r = await fetch(`${API}/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email: form.email, password: form.password })
-      });
-      if (r.ok) { const d = await r.json(); onLogin(d.token); }
-      else { const e2 = await safeJson(r); setError(e2.message || "Invalid credentials"); }
-    } else {
-      const r = await fetch(`${API}/auth/register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, role: "User" })
-      });
-      if (r.ok) { toast("Account created — please login", "success"); switchMode("login"); }
-      else {
-        const e2 = await safeJson(r);
-        setError(e2.message || JSON.stringify(e2.errors || "Error"));
+    e.preventDefault();
+    setLoading(true); setError("");
+    try {
+      if (mode === "login") {
+        const r = await fetch(`${API}/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: form.email, password: form.password }) });
+        if (r.ok) { const d = await r.json(); onLogin(d.token); }
+        else { const e2 = await safeJson(r); setError(e2.message || "Invalid credentials"); }
+      } else {
+        const r = await fetch(`${API}/auth/register`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...form, role: "User" }) });
+        if (r.ok) { toast("Account created — please login", "success"); switchMode("login"); }
+        else { const e2 = await safeJson(r); setError(e2.message || JSON.stringify(e2.errors || "Error")); }
       }
-    }
-  } catch { setError("Cannot connect to server — is the backend running?"); }
-  setLoading(false);
-};
+    } catch { setError("Cannot connect to server — is the backend running?"); }
+    setLoading(false);
+  };
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -1720,28 +1747,4 @@ function AuthModal({ mode, onClose, onLogin, switchMode, toast }) {
       </div>
     </div>
   );
-}
-
-// ─── DEMO DATA ───
-function demoMovies() {
-  return [
-    { id: 1, title: "Eternal Echoes", genre: "Drama", durationMinutes: 128, rating: 8.2, description: "A sweeping tale of love across time.", showtimeCount: 3 },
-    { id: 2, title: "Neon Shadows", genre: "Thriller", durationMinutes: 105, rating: 7.6, description: "A cyberpunk detective story.", showtimeCount: 2 },
-    { id: 3, title: "Apex Protocol", genre: "Action", durationMinutes: 135, rating: 7.4, description: "Elite agents race to stop global collapse.", showtimeCount: 5 },
-    { id: 4, title: "Lunar Drift", genre: "Sci-Fi", durationMinutes: 118, rating: 8.5, description: "Humanity's first generation born on the moon.", showtimeCount: 2 },
-  ];
-}
-function demoShowtimes(movieTitle) {
-  const now = new Date();
-  return [
-    { id: 1, movieTitle: movieTitle || "Eternal Echoes", movieGenre: "Drama", hallName: "Hall 1", hallCapacity: 80, price: 8.50, availableSeats: 68, startTime: new Date(now.getTime() + 86400000).toISOString(), endTime: new Date(now.getTime() + 86400000 + 7680000).toISOString() },
-    { id: 2, movieTitle: movieTitle || "Neon Shadows", movieGenre: "Thriller", hallName: "Hall 2", hallCapacity: 60, price: 7.00, availableSeats: 55, startTime: new Date(now.getTime() + 172800000).toISOString(), endTime: new Date(now.getTime() + 172800000 + 6300000).toISOString() },
-  ];
-}
-function demoBookings(email) {
-  const now = new Date();
-  return [
-    { id: 1, movieTitle: "Eternal Echoes", hallName: "Hall 1", userFullName: "Demo User", userEmail: email || "user@demo.com", status: "Confirmed", totalPrice: 17.00, showtimeStart: new Date(now.getTime() + 86400000).toISOString(), seats: [{ seatLabel: "C4" }, { seatLabel: "C5" }] },
-    { id: 2, movieTitle: "Neon Shadows", hallName: "Hall 2", userFullName: "Demo User", userEmail: email || "user@demo.com", status: "Canceled", totalPrice: 7.00, showtimeStart: new Date(now.getTime() - 86400000).toISOString(), seats: [{ seatLabel: "B7" }] },
-  ];
 }

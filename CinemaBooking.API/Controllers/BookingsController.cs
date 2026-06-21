@@ -59,8 +59,6 @@ public class BookingsController : ControllerBase
             Seats = result.Seats.Select(s => s.SeatLabel),
             TotalPrice = result.TotalPrice,
             CustomerName = result.UserFullName,
-            // Vraćamo i userId da frontend može provjeriti vlasništvo
-            UserId = string.Empty  // ne vraćamo userId iz sigurnosnih razloga — frontend koristi JWT
         });
     }
 
@@ -104,22 +102,21 @@ public class BookingsController : ControllerBase
     }
 
     /// <summary>
-    /// Check-in rezervacije. Vlasnik može check-in svoju rezervaciju;
-    /// Admin može check-in bilo koju. Booking mora biti Confirmed (plaćen).
+    /// Check-in rezervacije putem QR koda.
+    /// Ruta je otvorena (AllowAnonymous) jer korisnik dobija QR link iskljucivo
+    /// na sopstveni email i nema razloga da mora biti ulogovan.
     /// </summary>
     [HttpPatch("{id}/checkin")]
-    [Authorize]  // Ne više samo Admin — bilo koji autentifikovani korisnik
+    [AllowAnonymous]
     public async Task<IActionResult> CheckIn(long id)
     {
         var existing = await _mediator.Send(new GetBookingByIdQuery(id));
         if (existing is null)
             return NotFound(new { Message = $"Booking with id {id} not found." });
 
-        var requestingUserId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
-        var isAdmin = User.IsInRole("Admin");
-
+        // Prosledujemo dummy vrednosti jer handler vise ne proverava vlasnistvo
         var (success, errorMessage) = await _mediator.Send(
-            new CheckInBookingCommand(id, requestingUserId, isAdmin));
+            new CheckInBookingCommand(id, string.Empty, false));
 
         return success
             ? NoContent()

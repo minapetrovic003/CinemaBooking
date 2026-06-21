@@ -48,7 +48,6 @@ public class PaymentService : IPaymentService
                 $"Invalid payment method '{request.Method}'. Valid: CreditCard, DebitCard, PayPal, Voucher.",
                 400);
 
-        // Pronađi Pending booking koji odgovara parametrima
         var booking = _uow.Bookings
             .Search(request.UserEmail, null, null, null)
             .FirstOrDefault(b =>
@@ -78,12 +77,9 @@ public class PaymentService : IPaymentService
         payment.ProcessPayment();
         _uow.Payments.Add(payment);
 
-        // Potvrdi booking — Pending → Confirmed
         booking.Confirm();
-
         _uow.SaveChanges();
 
-        // Učitaj detalje za email
         var saved = _uow.Payments.GetByIdWithDetails(payment.Id);
         var confirmedBooking = _uow.Bookings.GetByIdWithDetails(booking.Id);
         var user = await _userRepository.FindByIdAsync(booking.UserId);
@@ -92,7 +88,6 @@ public class PaymentService : IPaymentService
         {
             try
             {
-                // Generiši PDF i pošalji email potvrde rezervacije + plaćanja
                 var pdfTicket = _pdfTicketService.GenerateTicket(confirmedBooking, user);
                 await _notificationService.SendBookingConfirmationAsync(
                     confirmedBooking, user, pdfTicket);
@@ -116,6 +111,12 @@ public class PaymentService : IPaymentService
         if (!payment.Refund())
             return (false, "Payment cannot be refunded in its current status.");
 
+        // Nakon refunda, otkazati booking (Confirmed/CheckedIn -> Canceled)
+        if (payment.Booking is not null)
+        {
+            payment.Booking.CancelAfterRefund();
+        }
+
         _uow.SaveChanges();
 
         try
@@ -128,7 +129,7 @@ public class PaymentService : IPaymentService
                 await _notificationService.SendRefundConfirmationAsync(payment, user);
             else
                 _logger.LogWarning(
-                    "User not found for payment #{PaymentId} — refund email not sent.",
+                    "User not found for payment #{PaymentId} - refund email not sent.",
                     payment.Id);
         }
         catch (Exception ex)

@@ -25,18 +25,16 @@ public class CheckInBookingHandler
         if (booking is null)
             return Task.FromResult((false, (string?)"Booking not found."));
 
-        // Vlasnik može check-in svoju rezervaciju; Admin može check-in bilo koju
-        if (!request.RequestingUserIsAdmin && booking.UserId != request.RequestingUserId)
-            return Task.FromResult((false, (string?)"You can only check in your own booking."));
-
+        // Check-in ruta je otvorena (AllowAnonymous) jer QR kod dobija
+        // iskljucivo vlasnik rezervacije putem emaila
         if (!booking.CheckIn())
             return Task.FromResult((false, (string?)"Only confirmed (paid) bookings can be checked in."));
 
         _uow.SaveChanges();
 
         _logger.LogInformation(
-            "Booking #{BookingId} checked in by user {UserId} (admin: {IsAdmin}).",
-            booking.Id, request.RequestingUserId, request.RequestingUserIsAdmin);
+            "Booking #{BookingId} checked in successfully.",
+            booking.Id);
 
         return Task.FromResult((true, (string?)null));
     }

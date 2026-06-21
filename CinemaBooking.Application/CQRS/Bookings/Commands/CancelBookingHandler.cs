@@ -1,6 +1,7 @@
 ﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
 using CinemaBooking.Application.Notifications;
 using CinemaBooking.Application.Repositories;
+using CinemaBooking.Domain.Models;
 using MediatR;
 using Microsoft.Extensions.Logging;
 
@@ -33,12 +34,15 @@ public class CancelBookingHandler
         if (booking is null)
             return (false, (string?)null);
 
+        // Ako je booking vec placen, ne moze se direktno otkazati - potreban je refund
+        if (booking.Status == BookingStatus.Confirmed || booking.Status == BookingStatus.CheckedIn)
+            return (false, "This booking has already been paid. To cancel, please request a payment refund from the admin.");
+
         if (!booking.Cancel())
             return (false, "Booking cannot be cancelled in its current status.");
 
         _uow.SaveChanges();
 
-        // Email o otkazivanju — samo ako je postojao potvrđeni booking (ne Pending)
         try
         {
             var user = await _userRepository.FindByIdAsync(booking.UserId);
@@ -46,7 +50,7 @@ public class CancelBookingHandler
                 await _notificationService.SendCancellationNoticeAsync(booking, user, cancellationToken);
             else
                 _logger.LogWarning(
-                    "User not found for booking #{BookingId} — cancellation email not sent.",
+                    "User not found for booking #{BookingId} - cancellation email not sent.",
                     booking.Id);
         }
         catch (Exception ex)
