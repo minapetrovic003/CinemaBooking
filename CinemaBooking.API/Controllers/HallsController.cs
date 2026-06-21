@@ -1,8 +1,13 @@
-﻿using CinemaBooking.Domain.DTOs.Halls;
-using CinemaBooking.Application.Services;    // <-- izmenjeno
+﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
+using CinemaBooking.Application.CQRS.Halls.Commands;
+using CinemaBooking.Application.CQRS.Halls.Queries;
+using CinemaBooking.Application.Services;   
+using CinemaBooking.Domain.DTOs.Halls;
 using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace CinemaBooking.API.Controllers;
 
@@ -11,44 +16,59 @@ namespace CinemaBooking.API.Controllers;
 [Authorize(Roles = "Admin")]
 public class HallsController : ControllerBase
 {
-    private readonly IHallService _hallService;
-    private readonly IValidator<CreateHallRequest> _validator;
+    private readonly IMediator _mediator;
 
-    public HallsController(IHallService hallService, IValidator<CreateHallRequest> validator)
+    public HallsController(IMediator mediator)
     {
-        _hallService = hallService;
-        _validator = validator;
+        _mediator = mediator;
     }
 
     [HttpGet]
-    public IActionResult GetAll() => Ok(_hallService.GetAll());
+    public async Task<IActionResult> GetAll()
+    {
+        var result = await _mediator.Send(new GetAllHallsQuery());
+        return Ok(result);
+    }
 
     [HttpGet("{id}")]
-    public IActionResult GetById(long id)
+    public async Task<IActionResult> GetById(long id)
     {
-        var hall = _hallService.GetById(id);
+        var hall = await _mediator.Send(new GetHallByIdQuery(id));
         return hall is null
             ? NotFound(new { Message = $"Hall with id {id} not found." })
             : Ok(hall);
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] CreateHallRequest request)
+    public async Task<IActionResult> CreateAsync([FromBody] CreateHallRequest request)
     {
-        var v = _validator.Validate(request);
-        if (!v.IsValid)
-            return BadRequest(v.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
+        try
+        {
+            var command = new CreateHallCommand(
+                request.Name, request.Capacity,
+                request.Rows, request.SeatsPerRow);
 
-        var (dto, conflict) = _hallService.Create(request);
-        if (conflict is not null)
-            return Conflict(new { Message = conflict });
+            var (dto, errorMessage, statusCode) = await _mediator.Send(command);
 
-        return CreatedAtAction(nameof(GetById), new { id = dto!.Id }, dto);
+            return statusCode switch
+            {
+                404 => NotFound(new { Message = errorMessage }),
+                409 => Conflict(new { Message = errorMessage }),
+                400 => BadRequest(new { Message = errorMessage }),
+                201 => CreatedAtAction(nameof(GetById), new { id = dto!.Id }, dto),
+                _ => StatusCode(statusCode, new { Message = errorMessage })
+            };
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ex.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
+        }
     }
-
+    
     [HttpDelete("{id}")]
-    public IActionResult Delete(long id)
-        => _hallService.Delete(id)
+    public async Task<IActionResult> Delete(long id) { 
+      return await _mediator.Send(new DeleteHallCommand(id))
             ? NoContent()
             : NotFound(new { Message = $"Hall with id {id} not found." });
+    }
 }
