@@ -8,4 +8,4 @@ public record CreateShowtimeCommand(
     string HallName,
     DateTime StartTime,
     decimal Price
-) : IRequest<ShowtimeDto>;
+) : IRequest<(ShowtimeDto? Dto, string? ErrorMessage, int StatusCode)>;

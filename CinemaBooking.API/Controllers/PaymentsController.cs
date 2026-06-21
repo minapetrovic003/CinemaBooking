@@ -1,5 +1,7 @@
-﻿using CinemaBooking.Domain.DTOs.Payments;
-using CinemaBooking.Application.Services;
+﻿using CinemaBooking.Application.CQRS.Payments.Commands;
+using CinemaBooking.Application.CQRS.Payments.Queries;
+using CinemaBooking.Domain.DTOs.Payments;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,19 +12,24 @@ namespace CinemaBooking.API.Controllers;
 [Authorize]
 public class PaymentsController : ControllerBase
 {
-    private readonly IPaymentService _paymentService;
+    private readonly IMediator _mediator;
 
-    public PaymentsController(IPaymentService paymentService)
-        => _paymentService = paymentService;
+    public PaymentsController(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
 
     [HttpGet]
     [Authorize(Roles = "Admin")]
-    public IActionResult GetAll() => Ok(_paymentService.GetAll());
+    public async Task<IActionResult> GetAll()
+    {
+        return Ok(await _mediator.Send(new GetAllPaymentsQuery()));
+    }
 
     [HttpGet("{id}")]
     public async Task<IActionResult> GetById(long id)
     {
-        var payment = await _paymentService.GetByIdAsync(id);
+        var payment = await _mediator.Send(new GetPaymentByIdQuery(id));
         return payment is null
             ? NotFound(new { Message = $"Payment with id {id} not found." })
             : Ok(payment);
@@ -31,7 +38,14 @@ public class PaymentsController : ControllerBase
     [HttpPost]
     public async Task<IActionResult> Create([FromBody] CreatePaymentRequest request)
     {
-        var (dto, errorMessage, statusCode) = await _paymentService.CreateAsync(request);
+        var command = new CreatePaymentCommand(
+            request.UserEmail,
+            request.MovieTitle,
+            request.HallName,
+            request.ShowtimeStartTime,
+            request.Method);
+
+        var (dto, errorMessage, statusCode) = await _mediator.Send(command);
 
         return statusCode switch
         {
@@ -47,10 +61,11 @@ public class PaymentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Refund(long id)
     {
-        if (await _paymentService.GetByIdAsync(id) is null)
+        var existing = await _mediator.Send(new GetPaymentByIdQuery(id));
+        if (existing is null)
             return NotFound(new { Message = $"Payment with id {id} not found." });
 
-        var (success, errorMessage) = await _paymentService.RefundAsync(id);
+        var (success, errorMessage) = await _mediator.Send(new RefundPaymentCommand(id));
         return success
             ? NoContent()
             : Conflict(new { Message = errorMessage });

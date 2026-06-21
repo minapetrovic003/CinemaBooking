@@ -9,4 +9,4 @@ public record CreatePaymentCommand(
     string HallName,
     DateTime ShowtimeStartTime,
     string Method
-) : IRequest<PaymentDto>;
+) : IRequest<(PaymentDto? Dto, string? ErrorMessage, int StatusCode)>;

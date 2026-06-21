@@ -6,7 +6,7 @@ using Microsoft.Extensions.Logging;
 
 namespace CinemaBooking.Application.CQRS.Payments.Handlers;
 
-public class RefundPaymentHandler : IRequestHandler<RefundPaymentCommand, bool>
+public class RefundPaymentHandler : IRequestHandler<RefundPaymentCommand, (bool Success, string? ErrorMessage)>
 {
     private readonly IUnitOfWork _uow;
     private readonly IUserRepository _userRepository;
@@ -25,13 +25,15 @@ public class RefundPaymentHandler : IRequestHandler<RefundPaymentCommand, bool>
         _logger = logger;
     }
 
-    public async Task<bool> Handle(RefundPaymentCommand request, CancellationToken cancellationToken)
+    public async Task<(bool Success, string? ErrorMessage)> Handle(
+        RefundPaymentCommand request, CancellationToken cancellationToken)
     {
-        var payment = _uow.Payments.GetByIdWithDetails(request.Id)
-            ?? throw new KeyNotFoundException($"Payment with id {request.Id} not found.");
+        var payment = _uow.Payments.GetByIdWithDetails(request.Id);
+        if (payment is null)
+            return (false, null);
 
         if (!payment.Refund())
-            throw new InvalidOperationException("Payment cannot be refunded in its current status.");
+            return (false, "Payment cannot be refunded in its current status.");
 
         if (payment.Booking is not null)
             payment.Booking.CancelAfterRefund();
@@ -47,13 +49,14 @@ public class RefundPaymentHandler : IRequestHandler<RefundPaymentCommand, bool>
             if (user is not null)
                 await _notificationService.SendRefundConfirmationAsync(payment, user);
             else
-                _logger.LogWarning("User not found for payment #{PaymentId} - refund email not sent.", payment.Id);
+                _logger.LogWarning(
+                    "User not found for payment #{PaymentId} - refund email not sent.", payment.Id);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Refund email failed for payment #{PaymentId}.", payment.Id);
         }
 
-        return true;
+        return (true, null);
     }
 }

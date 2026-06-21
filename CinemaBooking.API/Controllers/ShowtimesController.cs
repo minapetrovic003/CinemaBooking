@@ -1,6 +1,8 @@
-﻿using CinemaBooking.Domain.DTOs.Showtimes;
-using CinemaBooking.Application.Services;     // <-- izmenjeno
+﻿using CinemaBooking.Application.CQRS.Showtimes.Commands;
+using CinemaBooking.Application.CQRS.Showtimes.Queries;
+using CinemaBooking.Domain.DTOs.Showtimes;
 using FluentValidation;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -10,53 +12,66 @@ namespace CinemaBooking.API.Controllers;
 [Route("showtimes")]
 public class ShowtimesController : ControllerBase
 {
-    private readonly IShowtimeService _showtimeService;
-    private readonly IValidator<CreateShowtimeRequest> _validator;
+    private readonly IMediator _mediator;
 
-    public ShowtimesController(IShowtimeService showtimeService, IValidator<CreateShowtimeRequest> validator)
+    public ShowtimesController(IMediator mediator)
     {
-        _showtimeService = showtimeService;
-        _validator = validator;
+        _mediator = mediator;
     }
 
     [AllowAnonymous]
     [HttpGet]
-    public IActionResult GetAll([FromQuery] string? movieTitle, [FromQuery] DateTime? fromDate)
-        => Ok(_showtimeService.GetAll(movieTitle, fromDate));
+    public async Task<IActionResult> GetAll([FromQuery] string? movieTitle, [FromQuery] DateTime? fromDate)
+    {
+        var result = await _mediator.Send(new GetAllShowtimesQuery(movieTitle, fromDate));
+        return Ok(result);
+    }
 
     [AllowAnonymous]
     [HttpGet("{id}")]
-    public IActionResult GetById(long id)
+    public async Task<IActionResult> GetById(long id)
     {
-        var s = _showtimeService.GetById(id);
-        return s is null
+        var result = await _mediator.Send(new GetShowtimeByIdQuery(id));
+        return result is null
             ? NotFound(new { Message = $"Showtime with id {id} not found." })
-            : Ok(s);
+            : Ok(result);
     }
 
     [Authorize(Roles = "Admin")]
     [HttpPost]
-    public IActionResult Create([FromBody] CreateShowtimeRequest request)
+    public async Task<IActionResult> Create([FromBody] CreateShowtimeRequest request)
     {
-        var v = _validator.Validate(request);
-        if (!v.IsValid)
-            return BadRequest(v.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
-
-        var (dto, errorMessage, statusCode) = _showtimeService.Create(request);
-
-        return statusCode switch
+        try
         {
-            404 => NotFound(new { Message = errorMessage }),
-            409 => Conflict(new { Message = errorMessage }),
-            201 => CreatedAtAction(nameof(GetById), new { id = dto!.Id }, dto),
-            _ => StatusCode(statusCode, new { Message = errorMessage })
-        };
+            var command = new CreateShowtimeCommand(
+                request.MovieTitle,
+                request.HallName,
+                request.StartTime,
+                request.Price);
+
+            var (dto, errorMessage, statusCode) = await _mediator.Send(command);
+
+            return statusCode switch
+            {
+                404 => NotFound(new { Message = errorMessage }),
+                409 => Conflict(new { Message = errorMessage }),
+                400 => BadRequest(new { Message = errorMessage }),
+                201 => CreatedAtAction(nameof(GetById), new { id = dto!.Id }, dto),
+                _ => StatusCode(statusCode, new { Message = errorMessage })
+            };
+        }
+        catch (ValidationException ex)
+        {
+            return BadRequest(ex.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
+        }
     }
 
     [Authorize(Roles = "Admin")]
     [HttpDelete("{id}")]
-    public IActionResult Delete(long id)
-        => _showtimeService.Delete(id)
+    public async Task<IActionResult> Delete(long id)
+    {
+        return await _mediator.Send(new DeleteShowtimeCommand(id))
             ? NoContent()
             : NotFound(new { Message = $"Showtime with id {id} not found." });
+    }
 }

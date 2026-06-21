@@ -1,5 +1,4 @@
 ﻿using CinemaBooking.Application.CQRS.Showtimes.Commands;
-using CinemaBooking.Application.CQRS.Showtimes.Handlers;
 using CinemaBooking.Application.Repositories;
 using CinemaBooking.Domain.DTOs.Showtimes;
 using CinemaBooking.Domain.Models;
@@ -7,24 +6,31 @@ using MediatR;
 
 namespace CinemaBooking.Application.CQRS.Showtimes.Handlers;
 
-public class CreateShowtimeHandler : IRequestHandler<CreateShowtimeCommand, ShowtimeDto>
+public class CreateShowtimeHandler
+    : IRequestHandler<CreateShowtimeCommand, (ShowtimeDto? Dto, string? ErrorMessage, int StatusCode)>
 {
     private readonly IUnitOfWork _uow;
 
     public CreateShowtimeHandler(IUnitOfWork uow) => _uow = uow;
 
-    public Task<ShowtimeDto> Handle(CreateShowtimeCommand request, CancellationToken cancellationToken)
+    public Task<(ShowtimeDto? Dto, string? ErrorMessage, int StatusCode)> Handle(
+        CreateShowtimeCommand request, CancellationToken cancellationToken)
     {
-        var movie = _uow.Movies.GetByTitle(request.MovieTitle)
-            ?? throw new KeyNotFoundException($"Movie '{request.MovieTitle}' not found.");
+        var movie = _uow.Movies.GetByTitle(request.MovieTitle);
+        if (movie is null)
+            return Task.FromResult<(ShowtimeDto?, string?, int)>(
+                (null, $"Movie '{request.MovieTitle}' not found.", 404));
 
-        var hall = _uow.Halls.GetByNameWithShowtimes(request.HallName)
-            ?? throw new KeyNotFoundException($"Hall '{request.HallName}' not found.");
+        var hall = _uow.Halls.GetByNameWithShowtimes(request.HallName);
+        if (hall is null)
+            return Task.FromResult<(ShowtimeDto?, string?, int)>(
+                (null, $"Hall '{request.HallName}' not found.", 404));
 
         var endTime = request.StartTime.AddMinutes(movie.DurationMinutes);
 
         if (!hall.IsAvailable(request.StartTime, endTime))
-            throw new InvalidOperationException("Hall is not available at this time.");
+            return Task.FromResult<(ShowtimeDto?, string?, int)>(
+                (null, "Hall is not available at this time.", 409));
 
         var showtime = new Showtime
         {
@@ -53,6 +59,6 @@ public class CreateShowtimeHandler : IRequestHandler<CreateShowtimeCommand, Show
             AvailableSeats = hall.Capacity
         };
 
-        return Task.FromResult(dto);
+        return Task.FromResult<(ShowtimeDto?, string?, int)>((dto, null, 201));
     }
 }

@@ -69,6 +69,6 @@ public class HallsController : ControllerBase
     public async Task<IActionResult> Delete(long id) { 
       return await _mediator.Send(new DeleteHallCommand(id))
             ? NoContent()
-            : NotFound(new { Message = $"Movie with id {id} not found." });
+            : NotFound(new { Message = $"Hall with id {id} not found." });
     }
 }

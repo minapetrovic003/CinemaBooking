@@ -9,7 +9,8 @@ using Microsoft.Extensions.Logging;
 
 namespace CinemaBooking.Application.CQRS.Payments.Handlers;
 
-public class CreatePaymentHandler : IRequestHandler<CreatePaymentCommand, PaymentDto>
+public class CreatePaymentHandler
+    : IRequestHandler<CreatePaymentCommand, (PaymentDto? Dto, string? ErrorMessage, int StatusCode)>
 {
     private readonly IUnitOfWork _uow;
     private readonly IUserRepository _userRepository;
@@ -31,11 +32,13 @@ public class CreatePaymentHandler : IRequestHandler<CreatePaymentCommand, Paymen
         _logger = logger;
     }
 
-    public async Task<PaymentDto> Handle(CreatePaymentCommand request, CancellationToken cancellationToken)
+    public async Task<(PaymentDto? Dto, string? ErrorMessage, int StatusCode)> Handle(
+        CreatePaymentCommand request, CancellationToken cancellationToken)
     {
         if (!Enum.TryParse<PaymentMethod>(request.Method, true, out var method))
-            throw new ArgumentException(
-                $"Invalid payment method '{request.Method}'. Valid: CreditCard, DebitCard, PayPal, Voucher.");
+            return (null,
+                $"Invalid payment method '{request.Method}'. Valid: CreditCard, DebitCard, PayPal, Voucher.",
+                400);
 
         var booking = _uow.Bookings
             .Search(request.UserEmail, null, null, null)
@@ -43,13 +46,16 @@ public class CreatePaymentHandler : IRequestHandler<CreatePaymentCommand, Paymen
                 b.Showtime?.Movie?.Title == request.MovieTitle &&
                 b.Showtime?.Hall?.Name == request.HallName &&
                 b.Showtime?.StartTime == request.ShowtimeStartTime &&
-                b.Status == BookingStatus.Pending)
-            ?? throw new KeyNotFoundException(
-                "Pending booking not found. Check user email, movie title, hall name, and showtime.");
+                b.Status == BookingStatus.Pending);
+
+        if (booking is null)
+            return (null,
+                "Pending booking not found. Check user email, movie title, hall name, and showtime.",
+                404);
 
         var bookingWithPayment = _uow.Bookings.GetByIdWithDetails(booking.Id);
         if (bookingWithPayment?.Payment is not null)
-            throw new InvalidOperationException("This booking already has a payment.");
+            return (null, "This booking already has a payment.", 409);
 
         var payment = new Payment
         {
@@ -75,7 +81,8 @@ public class CreatePaymentHandler : IRequestHandler<CreatePaymentCommand, Paymen
             try
             {
                 var pdfTicket = _pdfTicketService.GenerateTicket(confirmedBooking, user);
-                await _notificationService.SendBookingConfirmationAsync(confirmedBooking, user, pdfTicket);
+                await _notificationService.SendBookingConfirmationAsync(
+                    confirmedBooking, user, pdfTicket);
             }
             catch (Exception ex)
             {
@@ -85,6 +92,6 @@ public class CreatePaymentHandler : IRequestHandler<CreatePaymentCommand, Paymen
             }
         }
 
-        return GetAllPaymentsHandler.MapToDto(saved!, user?.FullName, user?.Email);
+        return (GetAllPaymentsHandler.MapToDto(saved!, user?.FullName, user?.Email), null, 201);
     }
 }
