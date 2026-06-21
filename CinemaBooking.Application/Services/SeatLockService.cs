@@ -1,10 +1,9 @@
 ﻿using CinemaBooking.Domain.DTOs.SeatLocks;
-using CinemaBooking.Application.Services;
 using CinemaBooking.Domain.Models;
 using CinemaBooking.Application.Repositories;
 using Microsoft.Extensions.Logging;
 
-namespace CinemaBooking.Application.Notifications;
+namespace CinemaBooking.Application.Services;
 
 // Sve poslovne logike lokovanja sedista — izvuceno iz SeatLocksController
 public class SeatLockService : ISeatLockService
