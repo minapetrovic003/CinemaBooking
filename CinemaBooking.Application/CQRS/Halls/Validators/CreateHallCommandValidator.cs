@@ -1,11 +1,13 @@
-﻿using CinemaBooking.Domain.DTOs.Halls;
+﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
+using CinemaBooking.Application.CQRS.Halls.Commands;
+using CinemaBooking.Domain.DTOs.Halls;
 using FluentValidation;
 
-namespace CinemaBooking.Application.Validators
+namespace CinemaBooking.Application.CQRS.Halls.Validators
 {
-    public class CreateHallRequestValidator : AbstractValidator<CreateHallRequest>
+    public class CreateHallCommandValidator : AbstractValidator<CreateHallCommand>
     {
-        public CreateHallRequestValidator()
+        public CreateHallCommandValidator()
         {
             RuleFor(h => h.Name)
             .NotEmpty().WithMessage("Hall name is required.")
