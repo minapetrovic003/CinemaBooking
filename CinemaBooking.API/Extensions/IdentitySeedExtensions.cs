@@ -14,8 +14,6 @@ namespace CinemaBooking.API.Extensions
 
             var context = scope.ServiceProvider.GetRequiredService<CinemaBookingContext>();
 
-            // ✅ FIX #1: Primijeni migracije automatski pri pokretanju.
-            // Bez ovoga Identity tabele ne postoje i admin se ne može kreirati.
             await context.Database.MigrateAsync();
 
             var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
@@ -43,7 +41,7 @@ namespace CinemaBooking.API.Extensions
 
                 if (!result.Succeeded)
                 {
-                    // ✅ FIX: Log specifičnih grešaka umjesto generalne poruke
+                    
                     var errors = string.Join(", ", result.Errors.Select(e => e.Description));
                     throw new InvalidOperationException($"Admin user seed failed: {errors}");
                 }

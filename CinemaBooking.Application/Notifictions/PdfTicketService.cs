@@ -13,7 +13,7 @@ public class PdfTicketService : IPdfTicketService
 {
     private readonly string _frontendUrl;
 
-    // Beogradska vremenska zona - cross-platform (Linux: Europe/Belgrade, Windows: Central European Standard Time)
+   
     private static readonly TimeZoneInfo BelgradeTz = GetBelgradeTz();
 
     private static TimeZoneInfo GetBelgradeTz()

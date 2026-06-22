@@ -41,7 +41,6 @@ builder.Services.AddMediatR(cfg =>
     cfg.AddBehavior(typeof(IPipelineBehavior<,>), typeof(ValidationBehavior<,>));
 });
 
-builder.Services.AddValidatorsFromAssemblyContaining<Program>();
 builder.Services.AddValidatorsFromAssemblyContaining<CreateBookingCommandValidator>();
 
 builder.Services.AddDbContext<CinemaBookingContext>(options =>
