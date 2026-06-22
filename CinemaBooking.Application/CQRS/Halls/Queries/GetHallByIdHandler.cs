@@ -24,13 +24,17 @@ public class GetHallByIdHandler : IRequestHandler<GetHallByIdQuery, HallDto?>
             Name = hall.Name,
             Capacity = hall.Capacity,
             SeatCount = hall.Seats.Count,
-            Seats = hall.Seats.Select(s => new SeatInfo
-            {
-                Label = s.GetSeatLabel(),
-                Row = s.Row,
-                Number = s.Number,
-                SeatType = s.SeatType.ToString()
-            }).ToList()
+            Seats = hall.Seats
+                .OrderBy(s => s.Row)
+                .ThenBy(s => s.Number)
+                .Select(s => new SeatInfo
+                {
+                    Id = s.Id,
+                    Label = s.GetSeatLabel(),
+                    Row = s.Row,
+                    Number = s.Number,
+                    SeatType = s.SeatType.ToString()
+                }).ToList()
         };
 
         return Task.FromResult<HallDto?>(dto);

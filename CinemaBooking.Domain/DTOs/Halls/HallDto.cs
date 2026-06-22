@@ -11,6 +11,7 @@ public class HallDto
 
 public class SeatInfo
 {
+    public long Id { get; set; }
     public string Label { get; set; } = string.Empty;
     public string Row { get; set; } = string.Empty;
     public int Number { get; set; }

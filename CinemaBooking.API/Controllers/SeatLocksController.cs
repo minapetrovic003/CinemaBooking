@@ -1,6 +1,8 @@
+using CinemaBooking.Application.CQRS.SeatLocks.Commands;
+using CinemaBooking.Application.CQRS.SeatLocks.Queries;
 using CinemaBooking.Domain.DTOs.SeatLocks;
-using CinemaBooking.Application.Services;
 using CinemaBooking.Infrastructure.Identity;
+using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.AspNetCore.Mvc;
@@ -12,14 +14,12 @@ namespace CinemaBooking.API.Controllers;
 [Authorize]
 public class SeatLocksController : ControllerBase
 {
-    private readonly ISeatLockService _seatLockService;
+    private readonly IMediator _mediator;
     private readonly UserManager<ApplicationUser> _userManager;
 
-    public SeatLocksController(
-        ISeatLockService seatLockService,
-        UserManager<ApplicationUser> userManager)
+    public SeatLocksController(IMediator mediator, UserManager<ApplicationUser> userManager)
     {
-        _seatLockService = seatLockService;
+        _mediator = mediator;
         _userManager = userManager;
     }
 
@@ -31,7 +31,6 @@ public class SeatLocksController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> GetAvailability(long showtimeId)
     {
-        // Resolve current user ID (null ako nije ulogovan)
         string? currentUserId = null;
         if (User.Identity?.IsAuthenticated == true)
         {
@@ -44,11 +43,15 @@ public class SeatLocksController : ControllerBase
             }
         }
 
-        var result = _seatLockService.GetAvailability(showtimeId, currentUserId);
+        var (result, errorMessage, statusCode) =
+            await _mediator.Send(new GetSeatAvailabilityQuery(showtimeId, currentUserId));
 
-        return result is null
-            ? NotFound(new { Message = $"Showtime {showtimeId} not found." })
-            : Ok(result);
+        return statusCode switch
+        {
+            200 => Ok(result),
+            404 => NotFound(new { Message = errorMessage }),
+            _ => StatusCode(statusCode, new { Message = errorMessage })
+        };
     }
 
     /// <summary>
@@ -61,15 +64,23 @@ public class SeatLocksController : ControllerBase
         if (user is null)
             return NotFound(new { Message = $"User '{request.UserEmail}' not found." });
 
-        var (result, error, statusCode) = _seatLockService.LockSeats(request, user.Id);
+        var command = new LockSeatsCommand(
+            UserId: user.Id,
+            MovieTitle: request.MovieTitle,
+            HallName: request.HallName,
+            ShowtimeStartTime: request.ShowtimeStartTime,
+            Seats: request.Seats,
+            LockMinutes: request.LockMinutes);
+
+        var (result, errorMessage, statusCode) = await _mediator.Send(command);
 
         return statusCode switch
         {
             200 => Ok(result),
-            400 => BadRequest(new { Message = error }),
-            404 => NotFound(new { Message = error }),
-            409 => Conflict(new { Message = error }),
-            _ => StatusCode(statusCode, new { Message = error })
+            400 => BadRequest(new { Message = errorMessage }),
+            404 => NotFound(new { Message = errorMessage }),
+            409 => Conflict(new { Message = errorMessage }),
+            _ => StatusCode(statusCode, new { Message = errorMessage })
         };
     }
 
@@ -84,31 +95,9 @@ public class SeatLocksController : ControllerBase
         if (user is null)
             return NotFound(new { Message = $"User '{userEmail}' not found." });
 
-        _seatLockService.ReleaseLocks(user.Id, showtimeId);
-        return NoContent();
-    }
+        var (success, errorMessage) =
+            await _mediator.Send(new ReleaseLocksCommand(user.Id, showtimeId));
 
-    /// <summary>
-    /// Legacy endpoint — vraca aktivne lock-ove za projekciju.
-    /// Preferuj /availability/{showtimeId} za potpunu sliku.
-    /// </summary>
-    [HttpGet("status/{showtimeId:long}")]
-    public IActionResult GetLockStatus(long showtimeId)
-    {
-        var availability = _seatLockService.GetAvailability(showtimeId, currentUserId: null);
-        if (availability is null)
-            return NotFound(new { Message = $"Showtime {showtimeId} not found." });
-
-        var locked = availability
-            .Where(s => s.Status == "Locked" || s.Status == "MyLock")
-            .Select(s => new
-            {
-                SeatId = s.SeatId,
-                Label = s.Label,
-                ExpiresAt = s.ExpiresAt,
-                ExpiresInSeconds = s.ExpiresInSeconds
-            });
-
-        return Ok(locked);
+        return success ? NoContent() : BadRequest(new { Message = errorMessage });
     }
 }
