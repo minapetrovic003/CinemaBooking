@@ -1,5 +1,6 @@
 using CinemaBooking.API.Autentification;
 using CinemaBooking.Application.CQRS.Behaviors;
+using CinemaBooking.API.BackgroundServices;
 using CinemaBooking.API.Middlewares;
 using CinemaBooking.API.Services;
 using CinemaBooking.Application.Notifications;
@@ -15,10 +16,9 @@ using Microsoft.IdentityModel.Tokens;
 using Scalar.AspNetCore;
 using System.Text;
 using CinemaBooking.Application.CQRS.Bookings.Handlers;
-using CinemaBooking.Application.Services;
-using CinemaBooking.API.Extensions;
 using CinemaBooking.Application.CQRS.Bookings.Validators;
 using CinemaBooking.Application.Config;
+using CinemaBooking.API.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -58,10 +58,7 @@ var jwtOptions = builder.Configuration.GetSection("Jwt").Get<JwtOptions>()
     ?? throw new InvalidOperationException("JWT configuration is missing.");
 
 if (string.IsNullOrWhiteSpace(jwtOptions.Key))
-{
     throw new InvalidOperationException("JWT key is missing.");
-}
-
 
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IPdfTicketService, PdfTicketService>();
@@ -69,7 +66,9 @@ builder.Services.AddScoped<IPdfTicketService, PdfTicketService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 
-builder.Services.AddScoped<ISeatLockService, SeatLockService>();
+// ISeatLockService je uklonjen — logika je presla u CQRS handlere (LockSeatsHandler itd.)
+// Brisanje expired lock-ova radi SeatLockCleanupService u pozadini
+builder.Services.AddHostedService<SeatLockCleanupService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>(opt =>
 {
@@ -101,7 +100,6 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
-
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 
 var app = builder.Build();
@@ -109,9 +107,7 @@ var app = builder.Build();
 await app.SeedIdentityAsync();
 
 app.UseGlobalExceptionHandling();
-
 app.UseCors("FrontendPolicy");
-
 app.UseRequestLogging();
 app.UseIdempotency();
 
@@ -123,7 +119,6 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthentication();
 app.UseAuthorization();
-
 app.MapControllers();
 
 app.Run();

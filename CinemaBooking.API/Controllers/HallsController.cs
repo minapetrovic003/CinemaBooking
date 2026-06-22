@@ -1,13 +1,10 @@
-﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
-using CinemaBooking.Application.CQRS.Halls.Commands;
+﻿using CinemaBooking.Application.CQRS.Halls.Commands;
 using CinemaBooking.Application.CQRS.Halls.Queries;
-using CinemaBooking.Application.Services;   
 using CinemaBooking.Domain.DTOs.Halls;
 using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using static Microsoft.EntityFrameworkCore.DbLoggerCategory.Database;
 
 namespace CinemaBooking.API.Controllers;
 
@@ -64,11 +61,31 @@ public class HallsController : ControllerBase
             return BadRequest(ex.Errors.Select(e => new { e.PropertyName, e.ErrorMessage }));
         }
     }
-    
+
     [HttpDelete("{id}")]
-    public async Task<IActionResult> Delete(long id) { 
-      return await _mediator.Send(new DeleteHallCommand(id))
+    public async Task<IActionResult> Delete(long id)
+    {
+        return await _mediator.Send(new DeleteHallCommand(id))
             ? NoContent()
             : NotFound(new { Message = $"Hall with id {id} not found." });
+    }
+
+    /// <summary>
+    /// Menja tip sedista (Standard / Vip / Wheelchair) za dato sediste u sali.
+    /// </summary>
+    [HttpPatch("{hallId}/seats/{seatId}/type")]
+    public async Task<IActionResult> UpdateSeatType(
+        long hallId, long seatId, [FromBody] UpdateSeatTypeRequest request)
+    {
+        var command = new UpdateSeatTypeCommand(hallId, seatId, request.SeatType);
+        var (success, errorMessage, statusCode) = await _mediator.Send(command);
+
+        return statusCode switch
+        {
+            204 => NoContent(),
+            400 => BadRequest(new { Message = errorMessage }),
+            404 => NotFound(new { Message = errorMessage }),
+            _ => StatusCode(statusCode, new { Message = errorMessage })
+        };
     }
 }
