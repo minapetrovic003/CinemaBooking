@@ -5,7 +5,6 @@ using FluentValidation;
 using MediatR;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using System.Security.Claims;
 
 namespace CinemaBooking.API.Controllers;
 
@@ -91,14 +90,15 @@ public class BookingsController : ControllerBase
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(long id)
     {
-        var existing = await _mediator.Send(new GetBookingByIdQuery(id));
-        if (existing is null)
-            return NotFound(new { Message = $"Booking with id {id} not found." });
-
+        // Handler već vraća grešku ako booking ne postoji —
+        // višak GetBookingByIdQuery pre komande nije potreban.
         var (success, errorMessage) = await _mediator.Send(new CancelBookingCommand(id));
+
         return success
             ? NoContent()
-            : Conflict(new { Message = errorMessage });
+            : errorMessage is null
+                ? NotFound(new { Message = $"Booking with id {id} not found." })
+                : Conflict(new { Message = errorMessage });
     }
 
     /// <summary>
@@ -110,16 +110,14 @@ public class BookingsController : ControllerBase
     [AllowAnonymous]
     public async Task<IActionResult> CheckIn(long id)
     {
-        var existing = await _mediator.Send(new GetBookingByIdQuery(id));
-        if (existing is null)
-            return NotFound(new { Message = $"Booking with id {id} not found." });
-
-        // Prosledujemo dummy vrednosti jer handler vise ne proverava vlasnistvo
-        var (success, errorMessage) = await _mediator.Send(
-            new CheckInBookingCommand(id, string.Empty, false));
+        // Handler već vraća grešku ako booking ne postoji —
+        // višak GetBookingByIdQuery pre komande nije potreban.
+        var (success, errorMessage) = await _mediator.Send(new CheckInBookingCommand(id));
 
         return success
             ? NoContent()
-            : Conflict(new { Message = errorMessage });
+            : errorMessage is null
+                ? NotFound(new { Message = $"Booking with id {id} not found." })
+                : Conflict(new { Message = errorMessage });
     }
 }

@@ -61,13 +61,14 @@ public class PaymentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Refund(long id)
     {
-        var existing = await _mediator.Send(new GetPaymentByIdQuery(id));
-        if (existing is null)
-            return NotFound(new { Message = $"Payment with id {id} not found." });
-
+        // Handler već vraća (false, null) ako payment ne postoji —
+        // višak GetPaymentByIdQuery pre komande nije potreban.
         var (success, errorMessage) = await _mediator.Send(new RefundPaymentCommand(id));
+
         return success
             ? NoContent()
-            : Conflict(new { Message = errorMessage });
+            : errorMessage is null
+                ? NotFound(new { Message = $"Payment with id {id} not found." })
+                : Conflict(new { Message = errorMessage });
     }
 }

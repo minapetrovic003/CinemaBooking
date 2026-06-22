@@ -1,6 +1,8 @@
 ﻿using CinemaBooking.Application.CQRS.Halls.Commands;
 using FluentValidation;
 
+namespace CinemaBooking.Application.CQRS.Halls.Validators;
+
 public class UpdateSeatTypeCommandValidator : AbstractValidator<UpdateSeatTypeCommand>
 {
     private static readonly string[] ValidTypes = { "Standard", "Vip", "Wheelchair" };

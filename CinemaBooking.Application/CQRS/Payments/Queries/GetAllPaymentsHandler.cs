@@ -17,20 +17,25 @@ public class GetAllPaymentsHandler : IRequestHandler<GetAllPaymentsQuery, IEnume
         _userRepository = userRepository;
     }
 
-    public async Task<IEnumerable<PaymentDto>> Handle(GetAllPaymentsQuery request, CancellationToken cancellationToken)
+    public async Task<IEnumerable<PaymentDto>> Handle(
+        GetAllPaymentsQuery request, CancellationToken cancellationToken)
     {
         var payments = _uow.Payments.GetAllWithDetails().ToList();
-        var result = new List<PaymentDto>();
 
-        foreach (var p in payments)
+        // Jedan DB poziv za sve korisnike umesto N poziva u foreach petlji
+        var userIds = payments
+            .Where(p => p.Booking is not null)
+            .Select(p => p.Booking!.UserId)
+            .Distinct();
+
+        var users = await _userRepository.FindByIdsAsync(userIds);
+
+        return payments.Select(p =>
         {
-            var user = p.Booking is not null
-                ? await _userRepository.FindByIdAsync(p.Booking.UserId)
-                : null;
-            result.Add(MapToDto(p, user?.FullName, user?.Email));
-        }
-
-        return result;
+            var userId = p.Booking?.UserId;
+            var user = userId is not null && users.TryGetValue(userId, out var u) ? u : null;
+            return MapToDto(p, user?.FullName, user?.Email);
+        }).ToList();
     }
 
     private static PaymentDto MapToDto(Payment p, string? fullName, string? email) => new()
