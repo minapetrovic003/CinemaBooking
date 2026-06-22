@@ -70,7 +70,7 @@ public class CreatePaymentHandler
         _uow.Payments.Add(payment);
 
         booking.Confirm();
-        _uow.SaveChanges();
+        await _uow.SaveChangesAsync();
 
         var saved = _uow.Payments.GetByIdWithDetails(payment.Id);
         var confirmedBooking = _uow.Bookings.GetByIdWithDetails(booking.Id);
@@ -92,6 +92,20 @@ public class CreatePaymentHandler
             }
         }
 
-        return (GetAllPaymentsHandler.MapToDto(saved!, user?.FullName, user?.Email), null, 201);
+        return (MapToDto(saved!, user?.FullName, user?.Email), null, 201);
     }
+
+    private static PaymentDto MapToDto(Payment p, string? fullName, string? email) => new()
+    {
+        Id = p.Id,
+        Amount = p.Amount,
+        PaymentDate = p.PaymentDate,
+        Status = p.Status.ToString(),
+        Method = p.Method.ToString(),
+        UserFullName = fullName ?? string.Empty,
+        UserEmail = email ?? string.Empty,
+        MovieTitle = p.Booking?.Showtime?.Movie?.Title ?? string.Empty,
+        ShowtimeStart = p.Booking?.Showtime?.StartTime ?? DateTime.MinValue,
+        BookingStatus = p.Booking?.Status.ToString() ?? string.Empty
+    };
 }

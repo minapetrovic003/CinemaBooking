@@ -54,8 +54,7 @@ public class AuthController : ControllerBase
             return BadRequest(new { Errors = errors });
         }
 
-        var allowedRoles = new[] { "Admin", "User" };
-        var role = allowedRoles.Contains(request.Role) ? request.Role : "User";
+        const string role = "User";
 
         if (!await _roleManager.RoleExistsAsync(role))
         {

@@ -90,7 +90,7 @@ public class CreateBookingHandler
 
         try
         {
-            _uow.SaveChanges();
+            await _uow.SaveChangesAsync();
         }
         catch (DbUpdateConcurrencyException ex)
         {
@@ -106,7 +106,7 @@ public class CreateBookingHandler
         try
         {
             _uow.SeatLocks.ReleaseLocksForUser(showtime.Id, user.Id);
-            _uow.SaveChanges();
+            await _uow.SaveChangesAsync();
         }
         catch (Exception ex)
         {

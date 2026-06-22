@@ -10,13 +10,13 @@ public class DeleteShowtimeHandler : IRequestHandler<DeleteShowtimeCommand, bool
 
     public DeleteShowtimeHandler(IUnitOfWork uow) => _uow = uow;
 
-    public Task<bool> Handle(DeleteShowtimeCommand request, CancellationToken cancellationToken)
+    public async Task<bool> Handle(DeleteShowtimeCommand request, CancellationToken cancellationToken)
     {
         var showtime = _uow.Showtimes.GetById(request.Id);
-        if (showtime is null) return Task.FromResult(false);
+        if (showtime is null) return false;
 
         _uow.Showtimes.Remove(showtime);
-        _uow.SaveChanges();
-        return Task.FromResult(true);
+        await _uow.SaveChangesAsync();
+        return true;
     }
 }

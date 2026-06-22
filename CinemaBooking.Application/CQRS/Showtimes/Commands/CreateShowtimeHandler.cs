@@ -13,24 +13,23 @@ public class CreateShowtimeHandler
 
     public CreateShowtimeHandler(IUnitOfWork uow) => _uow = uow;
 
-    public Task<(ShowtimeDto? Dto, string? ErrorMessage, int StatusCode)> Handle(
+    public async Task<(ShowtimeDto? Dto, string? ErrorMessage, int StatusCode)> Handle(
         CreateShowtimeCommand request, CancellationToken cancellationToken)
     {
         var movie = _uow.Movies.GetByTitle(request.MovieTitle);
         if (movie is null)
-            return Task.FromResult<(ShowtimeDto?, string?, int)>(
-                (null, $"Movie '{request.MovieTitle}' not found.", 404));
+            return
+                (null, $"Movie '{request.MovieTitle}' not found.", 404);
 
         var hall = _uow.Halls.GetByNameWithShowtimes(request.HallName);
         if (hall is null)
-            return Task.FromResult<(ShowtimeDto?, string?, int)>(
-                (null, $"Hall '{request.HallName}' not found.", 404));
+            return (null, $"Hall '{request.HallName}' not found.", 404);
 
         var endTime = request.StartTime.AddMinutes(movie.DurationMinutes);
 
         if (!hall.IsAvailable(request.StartTime, endTime))
-            return Task.FromResult<(ShowtimeDto?, string?, int)>(
-                (null, "Hall is not available at this time.", 409));
+            return
+                (null, "Hall is not available at this time.", 409);
 
         var showtime = new Showtime
         {
@@ -42,7 +41,7 @@ public class CreateShowtimeHandler
         };
 
         _uow.Showtimes.Add(showtime);
-        _uow.SaveChanges();
+        await _uow.SaveChangesAsync();
 
         var dto = new ShowtimeDto
         {
@@ -59,6 +58,6 @@ public class CreateShowtimeHandler
             AvailableSeats = hall.Capacity
         };
 
-        return Task.FromResult<(ShowtimeDto?, string?, int)>((dto, null, 201));
+        return (dto, null, 201);
     }
 }

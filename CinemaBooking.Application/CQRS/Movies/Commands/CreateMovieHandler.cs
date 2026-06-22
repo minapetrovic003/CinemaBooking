@@ -12,7 +12,7 @@ public class CreateMovieHandler : IRequestHandler<CreateMovieCommand, MovieDto>
 
     public CreateMovieHandler(IUnitOfWork uow) => _uow = uow;
 
-    public Task<MovieDto> Handle(CreateMovieCommand request, CancellationToken cancellationToken)
+    public async Task<MovieDto> Handle(CreateMovieCommand request, CancellationToken cancellationToken)
     {
         var movie = new Movie
         {
@@ -24,7 +24,7 @@ public class CreateMovieHandler : IRequestHandler<CreateMovieCommand, MovieDto>
         };
 
         _uow.Movies.Add(movie);
-        _uow.SaveChanges();
+        await _uow.SaveChangesAsync();
 
         var dto = new MovieDto
         {
@@ -37,6 +37,6 @@ public class CreateMovieHandler : IRequestHandler<CreateMovieCommand, MovieDto>
             ShowtimeCount = 0
         };
 
-        return Task.FromResult(dto);
+        return dto;
     }
 }

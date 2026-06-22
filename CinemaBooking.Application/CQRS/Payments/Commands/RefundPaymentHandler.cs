@@ -38,7 +38,7 @@ public class RefundPaymentHandler : IRequestHandler<RefundPaymentCommand, (bool 
         if (payment.Booking is not null)
             payment.Booking.CancelAfterRefund();
 
-        _uow.SaveChanges();
+        await _uow.SaveChangesAsync();
 
         try
         {

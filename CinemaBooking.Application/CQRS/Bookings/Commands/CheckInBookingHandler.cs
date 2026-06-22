@@ -17,25 +17,25 @@ public class CheckInBookingHandler
         _logger = logger;
     }
 
-    public Task<(bool Success, string? ErrorMessage)> Handle(
+    public async Task<(bool Success, string? ErrorMessage)> Handle(
         CheckInBookingCommand request, CancellationToken cancellationToken)
     {
         var booking = _uow.Bookings.GetById(request.Id);
 
         if (booking is null)
-            return Task.FromResult((false, (string?)"Booking not found."));
+            return (false, "Booking not found.");
 
         // Check-in ruta je otvorena (AllowAnonymous) jer QR kod dobija
         // iskljucivo vlasnik rezervacije putem emaila
         if (!booking.CheckIn())
-            return Task.FromResult((false, (string?)"Only confirmed (paid) bookings can be checked in."));
+            return (false, "Only confirmed (paid) bookings can be checked in.");
 
-        _uow.SaveChanges();
+        await _uow.SaveChangesAsync();
 
         _logger.LogInformation(
             "Booking #{BookingId} checked in successfully.",
             booking.Id);
 
-        return Task.FromResult((true, (string?)null));
+        return (true, null);
     }
 }

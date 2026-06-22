@@ -12,15 +12,15 @@ namespace CinemaBooking.Application.CQRS.Halls.Commands
 
         public DeleteHallHandler(IUnitOfWork uow) => _uow = uow;
 
-        public Task<bool> Handle(DeleteHallCommand request, CancellationToken cancellationToken)
+        public async Task<bool> Handle(DeleteHallCommand request, CancellationToken cancellationToken)
         {
             var hall = _uow.Halls.GetById(request.Id);
             if (hall is null)
-                return Task.FromResult(false);
+                return false;
 
             _uow.Halls.Remove(hall);
-            _uow.SaveChanges();
-            return Task.FromResult(true);
+            await _uow.SaveChangesAsync();
+            return true;
         }
     }
 }

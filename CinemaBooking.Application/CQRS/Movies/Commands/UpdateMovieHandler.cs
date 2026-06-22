@@ -10,11 +10,11 @@ public class UpdateMovieHandler : IRequestHandler<UpdateMovieCommand, bool>
 
     public UpdateMovieHandler(IUnitOfWork uow) => _uow = uow;
 
-    public Task<bool> Handle(UpdateMovieCommand request, CancellationToken cancellationToken)
+    public async Task<bool> Handle(UpdateMovieCommand request, CancellationToken cancellationToken)
     {
         var movie = _uow.Movies.GetById(request.Id);
         if (movie is null)
-            return Task.FromResult(false);
+            return false;
 
         movie.Title = request.Title;
         movie.Description = request.Description;
@@ -22,7 +22,7 @@ public class UpdateMovieHandler : IRequestHandler<UpdateMovieCommand, bool>
         movie.DurationMinutes = request.DurationMinutes;
         movie.Rating = request.Rating;
 
-        _uow.SaveChanges();
-        return Task.FromResult(true);
+        await _uow.SaveChangesAsync();
+        return true;
     }
 }

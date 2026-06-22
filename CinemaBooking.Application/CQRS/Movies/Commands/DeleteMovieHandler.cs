@@ -10,14 +10,14 @@ public class DeleteMovieHandler : IRequestHandler<DeleteMovieCommand, bool>
 
     public DeleteMovieHandler(IUnitOfWork uow) => _uow = uow;
 
-    public Task<bool> Handle(DeleteMovieCommand request, CancellationToken cancellationToken)
+    public async Task<bool> Handle(DeleteMovieCommand request, CancellationToken cancellationToken)
     {
         var movie = _uow.Movies.GetById(request.Id);
         if (movie is null)
-            return Task.FromResult(false);
+            return false;
 
         _uow.Movies.Remove(movie);
-        _uow.SaveChanges();
-        return Task.FromResult(true);
+        await _uow.SaveChangesAsync();
+        return true;
     }
 }

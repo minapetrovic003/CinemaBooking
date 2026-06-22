@@ -19,12 +19,11 @@ public class CreateHallHandler
         _logger = logger;
     }
 
-    public Task<(HallDto? Dto, string? ErrorMessage, int StatusCode)> Handle(
+    public async Task<(HallDto? Dto, string? ErrorMessage, int StatusCode)> Handle(
         CreateHallCommand request, CancellationToken cancellationToken)
     {
         if (_uow.Halls.GetByName(request.Name) is not null)
-            return Task.FromResult<(HallDto?, string?, int)>(
-                (null, $"Hall with name '{request.Name}' already exists.", 409));
+            return (null, $"Hall with name '{request.Name}' already exists.", 409);
 
         var hall = new Hall
         {
@@ -36,7 +35,7 @@ public class CreateHallHandler
             hall.GenerateSeats(request.Rows.Value, request.SeatsPerRow.Value);
 
         _uow.Halls.Add(hall);
-        _uow.SaveChanges();
+        await _uow.SaveChangesAsync();
 
         _logger.LogInformation("Hall #{HallId} '{HallName}' created successfully.", hall.Id, hall.Name);
 
@@ -48,6 +47,6 @@ public class CreateHallHandler
             SeatCount = hall.Seats.Count
         };
 
-        return Task.FromResult<(HallDto?, string?, int)>((dto, null, 201));
+        return (dto, null, 201);
     }
 }

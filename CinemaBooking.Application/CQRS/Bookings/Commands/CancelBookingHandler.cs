@@ -41,7 +41,7 @@ public class CancelBookingHandler
         if (!booking.Cancel())
             return (false, "Booking cannot be cancelled in its current status.");
 
-        _uow.SaveChanges();
+        await _uow.SaveChangesAsync();
 
         try
         {
@@ -60,6 +60,6 @@ public class CancelBookingHandler
                 booking.Id);
         }
 
-        return (true, (string?)null);
+        return (true, null);
     }
 }

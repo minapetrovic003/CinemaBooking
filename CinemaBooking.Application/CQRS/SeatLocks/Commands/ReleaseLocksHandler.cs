@@ -11,11 +11,11 @@ public class ReleaseLocksHandler
 
     public ReleaseLocksHandler(IUnitOfWork uow) => _uow = uow;
 
-    public Task<(bool Success, string? ErrorMessage)> Handle(
+    public async Task<(bool Success, string? ErrorMessage)> Handle(
         ReleaseLocksCommand request, CancellationToken cancellationToken)
     {
         _uow.SeatLocks.ReleaseLocksForUser(request.ShowtimeId, request.UserId);
-        _uow.SaveChanges();
-        return Task.FromResult((true, (string?)null));
+        await _uow.SaveChangesAsync();
+        return (true, null);
     }
 }

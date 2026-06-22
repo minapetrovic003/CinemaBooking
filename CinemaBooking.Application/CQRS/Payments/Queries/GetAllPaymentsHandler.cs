@@ -33,7 +33,7 @@ public class GetAllPaymentsHandler : IRequestHandler<GetAllPaymentsQuery, IEnume
         return result;
     }
 
-    internal static PaymentDto MapToDto(Payment p, string? fullName, string? email) => new()
+    private static PaymentDto MapToDto(Payment p, string? fullName, string? email) => new()
     {
         Id = p.Id,
         Amount = p.Amount,

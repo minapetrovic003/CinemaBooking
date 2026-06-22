@@ -1,6 +1,4 @@
-﻿using CinemaBooking.Application.CQRS.Bookings.Commands;
-using CinemaBooking.Application.CQRS.Halls.Commands;
-using CinemaBooking.Domain.DTOs.Halls;
+﻿using CinemaBooking.Application.CQRS.Halls.Commands;
 using FluentValidation;
 
 namespace CinemaBooking.Application.CQRS.Halls.Validators

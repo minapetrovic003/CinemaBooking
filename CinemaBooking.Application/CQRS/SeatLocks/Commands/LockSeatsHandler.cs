@@ -25,7 +25,7 @@ public class LockSeatsHandler
         _logger = logger;
     }
 
-    public Task<(SeatLockDto? Result, string? ErrorMessage, int StatusCode)> Handle(
+    public async Task<(SeatLockDto? Result, string? ErrorMessage, int StatusCode)> Handle(
         LockSeatsCommand request, CancellationToken cancellationToken)
     {
         var showtime = _uow.Showtimes
@@ -33,12 +33,10 @@ public class LockSeatsHandler
                 request.MovieTitle, request.HallName, request.ShowtimeStartTime);
 
         if (showtime is null)
-            return Task.FromResult<(SeatLockDto?, string?, int)>(
-                (null, "Showtime not found.", 404));
+            return (null, "Showtime not found.", 404);
 
         if (showtime.StartTime <= DateTime.UtcNow)
-            return Task.FromResult<(SeatLockDto?, string?, int)>(
-                (null, "Cannot lock seats for past showtimes.", 409));
+            return (null, "Cannot lock seats for past showtimes.", 409);
 
         var requestedLabels = request.Seats.Select(s => s.ToUpper()).ToList();
         var seats = showtime.Hall.Seats
@@ -50,17 +48,13 @@ public class LockSeatsHandler
             .ToList();
 
         if (notFound.Any())
-            return Task.FromResult<(SeatLockDto?, string?, int)>(
-                (null, $"Seats not found: {string.Join(", ", notFound)}", 400));
+            return (null, $"Seats not found: {string.Join(", ", notFound)}", 400);
 
         var bookedSeatIds = _uow.Bookings.GetBookedSeatIds(showtime.Id).ToList();
         var alreadyBooked = seats.Where(s => bookedSeatIds.Contains(s.Id)).ToList();
 
         if (alreadyBooked.Any())
-            return Task.FromResult<(SeatLockDto?, string?, int)>(
-                (null,
-                $"Seats already booked: {string.Join(", ", alreadyBooked.Select(s => s.GetSeatLabel()))}",
-                409));
+            return (null, $"Seats already booked: {string.Join(", ", alreadyBooked.Select(s => s.GetSeatLabel()))}", 409);
 
         var seatIds = seats.Select(s => s.Id).ToList();
         var lockedByOthers = _uow.SeatLocks
@@ -74,11 +68,10 @@ public class LockSeatsHandler
                 .Where(s => lockedByOthers.Any(l => l.SeatId == s.Id))
                 .Select(s => s.GetSeatLabel());
 
-            return Task.FromResult<(SeatLockDto?, string?, int)>(
-                (null,
+            return (null,
                 $"Seats temporarily locked by another user: {string.Join(", ", lockedLabels)}. " +
                 "Please try again in a few minutes.",
-                409));
+                409);
         }
 
         // Oslobodi prethodne lock-ove ovog korisnika (promena selekcije)
@@ -91,7 +84,7 @@ public class LockSeatsHandler
             SeatLock.Create(s.Id, showtime.Id, request.UserId, lockMinutes)).ToList();
 
         _uow.SeatLocks.LockSeats(locks);
-        _uow.SaveChanges();
+        await _uow.SaveChangesAsync();
 
         var expiresAtBelgrade = TimeZoneInfo.ConvertTimeFromUtc(expiresAt, BelgradeZone);
 
@@ -99,12 +92,12 @@ public class LockSeatsHandler
             "User {UserId} locked seats [{Seats}] for showtime {ShowtimeId}, expires at {ExpiresAt} UTC.",
             request.UserId, string.Join(", ", requestedLabels), showtime.Id, expiresAt);
 
-        return Task.FromResult<(SeatLockDto?, string?, int)>((new SeatLockDto
+        return (new SeatLockDto
         {
             LockedSeats = seats.Select(s => s.GetSeatLabel()).ToList(),
             ExpiresAt = expiresAt,
             Message = $"Seats locked for {lockMinutes} minutes. " +
                       $"Complete your booking before {expiresAtBelgrade:HH:mm} (Belgrade time)."
-        }, null, 200));
+        }, null, 200);
     }
 }
