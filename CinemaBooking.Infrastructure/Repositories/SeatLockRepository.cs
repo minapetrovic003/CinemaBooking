@@ -28,9 +28,7 @@ public class SeatLockRepository : ISeatLockRepository
 
     public void LockSeats(IEnumerable<SeatLock> locks)
     {
-        // Expired lock-ovi se vise NE brisu ovde sinhrono.
-        // Brise ih SeatLockCleanupService (BackgroundService) svakih 60 sekundi.
-        _context.SeatLocks.AddRange(locks);
+         _context.SeatLocks.AddRange(locks);
     }
 
     public void ReleaseLocksForUser(long showtimeId, string userId)

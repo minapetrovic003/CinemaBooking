@@ -3,7 +3,6 @@ using MediatR;
 
 namespace CinemaBooking.Application.CQRS.Bookings.Commands;
 
-// Vraća (BookingDto?, errorMessage?, statusCode)
 public record CreateBookingCommand(
     string UserEmail,
     string MovieTitle,

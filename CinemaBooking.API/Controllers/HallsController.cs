@@ -70,9 +70,7 @@ public class HallsController : ControllerBase
             : NotFound(new { Message = $"Hall with id {id} not found." });
     }
 
-    /// <summary>
-    /// Menja tip sedista (Standard / Vip / Wheelchair) za dato sediste u sali.
-    /// </summary>
+    
     [HttpPatch("{hallId}/seats/{seatId}/type")]
     public async Task<IActionResult> UpdateSeatType(
         long hallId, long seatId, [FromBody] UpdateSeatTypeRequest request)

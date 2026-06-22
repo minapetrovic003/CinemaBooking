@@ -61,8 +61,7 @@ public class PaymentsController : ControllerBase
     [Authorize(Roles = "Admin")]
     public async Task<IActionResult> Refund(long id)
     {
-        // Handler već vraća (false, null) ako payment ne postoji —
-        // višak GetPaymentByIdQuery pre komande nije potreban.
+        
         var (success, errorMessage) = await _mediator.Send(new RefundPaymentCommand(id));
 
         return success

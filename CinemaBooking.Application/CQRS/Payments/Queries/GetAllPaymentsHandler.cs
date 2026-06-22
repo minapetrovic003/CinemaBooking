@@ -22,7 +22,6 @@ public class GetAllPaymentsHandler : IRequestHandler<GetAllPaymentsQuery, IEnume
     {
         var payments = _uow.Payments.GetAllWithDetails().ToList();
 
-        // Jedan DB poziv za sve korisnike umesto N poziva u foreach petlji
         var userIds = payments
             .Where(p => p.Booking is not null)
             .Select(p => p.Booking!.UserId)

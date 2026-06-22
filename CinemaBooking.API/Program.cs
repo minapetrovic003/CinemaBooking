@@ -66,8 +66,6 @@ builder.Services.AddScoped<IPdfTicketService, PdfTicketService>();
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 
-// ISeatLockService je uklonjen — logika je presla u CQRS handlere (LockSeatsHandler itd.)
-// Brisanje expired lock-ova radi SeatLockCleanupService u pozadini
 builder.Services.AddHostedService<SeatLockCleanupService>();
 
 builder.Services.AddIdentityCore<ApplicationUser>(opt =>

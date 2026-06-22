@@ -26,14 +26,11 @@ public class ShowtimeRepository : Repository<Showtime>, IShowtimeRepository
         return query.OrderBy(s => s.StartTime).ToList();
     }
 
-    // ✅ FIX #2: Dodan .ThenInclude(h => h.Seats)
-    // Bez ovoga SeatLockService.GetAvailability() uvijek vraća praznu listu sedišta
-    // jer Hall.Seats nije učitan iz baze → frontend prikazuje "Could not load seat map"
     public Showtime? GetByIdWithDetails(long id) =>
         DbSet
             .Include(s => s.Movie)
             .Include(s => s.Hall)
-                .ThenInclude(h => h.Seats)  // ✅ OVO NEDOSTAJE u originalnom kodu!
+                .ThenInclude(h => h.Seats)  
             .Include(s => s.Bookings)
                 .ThenInclude(b => b.BookingSeats)
             .FirstOrDefault(s => s.Id == id);

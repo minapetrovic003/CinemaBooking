@@ -3,12 +3,6 @@ using CinemaBooking.Infrastructure;
 
 namespace CinemaBooking.API.BackgroundServices;
 
-/// <summary>
-/// Pozadinski servis koji svakih 60 sekundi brise istekle SeatLock zapise iz baze.
-/// Registrovan kao IHostedService u Program.cs.
-/// Koristi IServiceScopeFactory jer je scoped DbContext nije direktno injectovati
-/// u singleton BackgroundService.
-/// </summary>
 public class SeatLockCleanupService : BackgroundService
 {
     private readonly IServiceScopeFactory _scopeFactory;

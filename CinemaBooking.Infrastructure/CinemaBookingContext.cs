@@ -25,7 +25,6 @@ public class CinemaBookingContext : IdentityDbContext<ApplicationUser>
 
     public DbSet<SeatLock> SeatLocks { get; set; }
 
-    // Nema više DbSet<User> — Identity sada upravlja korisnicima
 
     protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
     {
@@ -148,8 +147,6 @@ public class CinemaBookingContext : IdentityDbContext<ApplicationUser>
 
             entity.Property(sl => sl.UserId).HasMaxLength(450).IsRequired();
 
-            // Jedan korisnik moze imati samo jedan aktivan lock po sedištu i prikazivanju.
-            // Unique indeks sprecava duplikate na nivou baze.
             entity.HasIndex(sl => new { sl.SeatId, sl.ShowtimeId, sl.UserId })
                   .IsUnique()
                   .HasDatabaseName("IX_SeatLocks_SeatShowtimeUser");

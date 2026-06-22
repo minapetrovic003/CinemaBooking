@@ -90,8 +90,7 @@ public class BookingsController : ControllerBase
     [HttpPatch("{id}/cancel")]
     public async Task<IActionResult> Cancel(long id)
     {
-        // Handler već vraća grešku ako booking ne postoji —
-        // višak GetBookingByIdQuery pre komande nije potreban.
+      
         var (success, errorMessage) = await _mediator.Send(new CancelBookingCommand(id));
 
         return success
@@ -101,18 +100,14 @@ public class BookingsController : ControllerBase
                 : Conflict(new { Message = errorMessage });
     }
 
-    /// <summary>
-    /// Check-in rezervacije putem QR koda.
-    /// Ruta je otvorena (AllowAnonymous) jer korisnik dobija QR link iskljucivo
-    /// na sopstveni email i nema razloga da mora biti ulogovan.
-    /// </summary>
+    
     [HttpPatch("{id}/checkin")]
     [AllowAnonymous]
     public async Task<IActionResult> CheckIn(long id)
     {
-        // Handler već vraća grešku ako booking ne postoji —
-        // višak GetBookingByIdQuery pre komande nije potreban.
-        var (success, errorMessage) = await _mediator.Send(new CheckInBookingCommand(id));
+        
+        var ( success, errorMessage) =
+            await _mediator.Send(new CheckInBookingCommand(id));
 
         return success
             ? NoContent()

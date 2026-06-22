@@ -25,8 +25,7 @@ public class CheckInBookingHandler
         if (booking is null)
             return (false, "Booking not found.");
 
-        // Check-in ruta je otvorena (AllowAnonymous) jer QR kod dobija
-        // iskljucivo vlasnik rezervacije putem emaila
+        
         if (!booking.CheckIn())
             return (false, "Only confirmed (paid) bookings can be checked in.");
 

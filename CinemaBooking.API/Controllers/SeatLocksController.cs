@@ -23,10 +23,7 @@ public class SeatLocksController : ControllerBase
         _userManager = userManager;
     }
 
-    /// <summary>
-    /// Vraca konsolidovanu mapu dostupnosti sedista za datu projekciju.
-    /// Frontend polluje ovaj endpoint svakih 5 sekundi.
-    /// </summary>
+    
     [HttpGet("availability/{showtimeId:long}")]
     [AllowAnonymous]
     public async Task<IActionResult> GetAvailability(long showtimeId)
@@ -54,9 +51,7 @@ public class SeatLocksController : ControllerBase
         };
     }
 
-    /// <summary>
-    /// Zakljucava odabrana sedista za korisnika (max 15 min).
-    /// </summary>
+
     [HttpPost("lock")]
     public async Task<IActionResult> LockSeats([FromBody] LockSeatsRequest request)
     {
@@ -84,9 +79,7 @@ public class SeatLocksController : ControllerBase
         };
     }
 
-    /// <summary>
-    /// Oslobadja lock-ove korisnika kada klikne "Nazad" ili zatvori modal.
-    /// </summary>
+ 
     [HttpDelete("release")]
     public async Task<IActionResult> ReleaseLocks(
         [FromQuery] string userEmail, [FromQuery] long showtimeId)

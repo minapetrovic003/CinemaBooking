@@ -1,5 +1,4 @@
-﻿// CinemaBooking.API/Extensions/IdentitySeedExtensions.cs
-using CinemaBooking.Infrastructure;
+﻿using CinemaBooking.Infrastructure;
 using CinemaBooking.Infrastructure.Identity;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;

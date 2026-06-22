@@ -136,7 +136,6 @@ public class CreateBookingHandler
             }).ToList()
         };
 
-        // Email se NE šalje ovdje — šalje se tek nakon plaćanja (PaymentService)
         _logger.LogInformation(
             "Booking #{BookingId} created as Pending for user {Email}. Awaiting payment.",
             booking.Id, user.Email);

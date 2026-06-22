@@ -7,7 +7,7 @@ namespace CinemaBooking.API.Controllers;
 
 [ApiController]
 [Route("notifications")]
-[Authorize] // Za testiranje možeš privremeno staviti [AllowAnonymous]
+[Authorize] 
 public class NotificationsController : ControllerBase
 {
     private readonly INotificationService _notificationService;
@@ -21,9 +21,7 @@ public class NotificationsController : ControllerBase
         _logger = logger;
     }
 
-    /// <summary>
-    /// Test endpoint za proveru SMTP konfiguracije.
-    /// </summary>
+
     [HttpPost("test-email")]
     public async Task<IActionResult> SendTestEmail(
         [FromBody] TestEmailRequest request,
