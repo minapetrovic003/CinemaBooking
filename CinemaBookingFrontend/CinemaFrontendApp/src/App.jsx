@@ -397,6 +397,37 @@ const css = `
   }
 
   .info-box { background: rgba(204,139,134,0.06); border: 1px solid rgba(204,139,134,0.15); border-radius: 10px; padding: 0.85rem 1rem; font-size: 0.83rem; color: var(--text-muted); margin-top: 0.75rem; }
+
+  .manage-seats-grid { display: flex; flex-direction: column; gap: 4px; max-height: 380px; overflow-y: auto; padding: 0.75rem; background: rgba(0,0,0,0.25); border-radius: 10px; }
+  .manage-seat-row { display: flex; align-items: center; gap: 4px; }
+  .manage-seat-row-label { width: 18px; text-align: center; font-size: 0.7rem; color: var(--text-muted); font-weight: 500; }
+  .manage-seat {
+    width: 30px; height: 28px; border-radius: 6px 6px 4px 4px;
+    cursor: pointer; transition: all 0.15s; border: none;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 0.58rem; font-weight: 600; font-family: 'Inter', sans-serif;
+    position: relative;
+  }
+  .manage-seat::after { content: ''; position: absolute; bottom: 0; left: 3px; right: 3px; height: 4px; border-radius: 0 0 3px 3px; background: rgba(0,0,0,0.25); }
+  .manage-seat-std { background: rgba(204,139,134,0.1); border: 1px solid rgba(204,139,134,0.2); color: rgba(204,139,134,0.5); }
+  .manage-seat-std:hover { border-color: rgba(204,139,134,0.5); background: rgba(204,139,134,0.18); }
+  .manage-seat-vip { background: rgba(212,168,67,0.18); border: 1px solid rgba(212,168,67,0.5); color: #d4a843; width: 36px; height: 32px; border-radius: 8px 8px 5px 5px; }
+  .manage-seat-vip:hover { background: rgba(212,168,67,0.28); }
+  .manage-seat-wc { background: rgba(100,149,237,0.15); border: 1px solid rgba(100,149,237,0.4); color: #6495ed; }
+  .manage-seat-wc:hover { background: rgba(100,149,237,0.25); }
+  .manage-seat-active { box-shadow: 0 0 0 2px var(--rose); transform: scale(1.12); z-index: 2; }
+  .seat-type-picker { margin-top: 1rem; padding: 1rem; background: rgba(204,139,134,0.06); border: 1px solid rgba(204,139,134,0.15); border-radius: 10px; }
+  .seat-type-picker-title { font-size: 0.78rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 0.6rem; }
+  .seat-type-btns { display: flex; gap: 0.5rem; }
+  .seat-type-btn { padding: 0.4rem 1rem; border-radius: 8px; font-size: 0.82rem; cursor: pointer; font-family: 'Inter', sans-serif; transition: all 0.2s; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.04); color: var(--text-muted); }
+  .seat-type-btn:hover { border-color: rgba(204,139,134,0.4); color: var(--rose); }
+  .seat-type-btn.t-standard.active { background: rgba(204,139,134,0.15); border-color: rgba(204,139,134,0.5); color: var(--rose); }
+  .seat-type-btn.t-vip.active { background: rgba(212,168,67,0.15); border-color: rgba(212,168,67,0.5); color: #d4a843; }
+  .seat-type-btn.t-wheelchair.active { background: rgba(100,149,237,0.15); border-color: rgba(100,149,237,0.5); color: #6495ed; }
+  .seat-type-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  .manage-seats-legend { display: flex; gap: 1rem; flex-wrap: wrap; margin-bottom: 0.75rem; font-size: 0.75rem; color: var(--text-muted); }
+  .manage-legend-item { display: flex; align-items: center; gap: 5px; }
+  .manage-legend-dot { width: 12px; height: 12px; border-radius: 3px; }
 `;
 
 const GENRE_EMOJI = {
@@ -1002,7 +1033,13 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
     return Object.entries(rowMap).sort(([a], [b]) => a.localeCompare(b)).map(([rowLabel, seats]) => ({ label: rowLabel, seats: seats.sort((a, b) => a.number - b.number) }));
   })();
 
-  const totalPrice = selectedSeats.length * Number(showtime.price);
+  const VIP_SURCHARGE = 5;
+  const totalPrice = selectedSeats.reduce((sum, label) => {
+    const seat = seatMap.find(s => s.label === label);
+    const surcharge = seat?.seatType === "Vip" ? VIP_SURCHARGE : 0;
+    return sum + Number(showtime.price) + surcharge;
+  }, 0);
+  const hasVipSelected = selectedSeats.some(label => seatMap.find(s => s.label === label)?.seatType === "Vip");
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && handleClose()}>
@@ -1035,9 +1072,9 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
                           const isSelected = selectedSeats.includes(seat.label);
                           const seatClass = seat.status === "Booked" ? "seat-booked" : seat.status === "Locked" ? "seat-locked" : seat.status === "MyLock" ? "seat-mylock" : isSelected ? "seat-selected" : "seat-available";
                           return (
-                            <button key={seat.label} className={`seat ${seat.seatType === "VIP" ? "seat-vip" : ""} ${seatClass}`}
+                            <button key={seat.label} className={`seat ${seat.seatType === "Vip" ? "seat-vip" : ""} ${seatClass}`}
                               onClick={() => toggleSeat(seat)}
-                              title={`${seat.label}${seat.seatType === "VIP" ? " (VIP)" : ""} — ${seat.status}`}
+                              title={`${seat.label}${seat.seatType === "Vip" ? " (VIP +€5)" : seat.seatType === "Wheelchair" ? " (Wheelchair)" : ""} — ${seat.status}`}
                               disabled={seat.status === "Booked" || seat.status === "Locked"}>
                               {seat.number}
                             </button>
@@ -1052,13 +1089,15 @@ function BookingModal({ showtime, movie, user, token, onClose, toast }) {
                     <div className="legend-item"><div className="legend-dot" style={{ background: "var(--rose)" }} />Selected</div>
                     <div className="legend-item"><div className="legend-dot" style={{ background: "rgba(255,255,255,0.05)" }} />Taken</div>
                     <div className="legend-item"><div className="legend-dot" style={{ background: "rgba(212,168,67,0.2)", border: "1px solid rgba(212,168,67,0.4)" }} />Locked</div>
+                    <div className="legend-item"><div className="legend-dot" style={{ background: "rgba(212,168,67,0.15)", border: "1px solid rgba(212,168,67,0.5)", width: 15, height: 13 }} />VIP +€5</div>
                   </div>
                 </div>
               )}
               {selectedSeats.length > 0 && (
                 <div className="booking-summary">
                   <div className="booking-summary-row"><span style={{ color: "var(--text-muted)" }}>Selected seats</span><span className="booking-summary-val">{selectedSeats.join(", ")}</span></div>
-                  <div className="booking-summary-row"><span style={{ color: "var(--text-muted)" }}>Price per seat</span><span className="booking-summary-val">{formatEur(showtime.price)}</span></div>
+                  <div className="booking-summary-row"><span style={{ color: "var(--text-muted)" }}>Base price</span><span className="booking-summary-val">{formatEur(showtime.price)} / seat</span></div>
+                  {hasVipSelected && <div className="booking-summary-row"><span style={{ color: "#d4a843" }}>VIP surcharge</span><span style={{ color: "#d4a843" }}>+€5.00 / VIP seat</span></div>}
                   <div className="booking-summary-row total"><span>Total</span><span style={{ color: "var(--rose)" }}>{formatEur(totalPrice)}</span></div>
                 </div>
               )}
@@ -1323,6 +1362,7 @@ function AdminPage({ token, toast }) {
   const [editMovie, setEditMovie] = useState(null);
   const [showAddShowtime, setShowAddShowtime] = useState(false);
   const [showAddHall, setShowAddHall] = useState(false);
+  const [managingHall, setManagingHall] = useState(null);
 
   const [newMovie, setNewMovie] = useState({ title: "", description: "", genre: "Drama", durationMinutes: 120, rating: 7.5 });
   const [newShowtime, setNewShowtime] = useState({ movieTitle: "", hallName: "", startTime: "", price: 10 });
@@ -1645,7 +1685,11 @@ function AdminPage({ token, toast }) {
                       <td style={{ color: "var(--cream)", fontWeight: 500 }}>🏛 {h.name}</td>
                       <td>{h.capacity}</td>
                       <td>{h.seatCount}</td>
-                      <td><button className="btn-cancel" onClick={() => deleteHall(h.id)}>Delete</button></td>
+                      <td style={{ display: "flex", gap: "0.5rem" }}>
+                        <button className="btn-outline" style={{ fontSize: "0.78rem", padding: "0.3rem 0.7rem" }}
+                          onClick={() => setManagingHall(h)}>🪑 Seats</button>
+                        <button className="btn-cancel" onClick={() => deleteHall(h.id)}>Delete</button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1689,11 +1733,127 @@ function AdminPage({ token, toast }) {
           )}
         </>
       )}
+      {managingHall && (
+        <ManageSeatsModal hall={managingHall} token={token} toast={toast}
+          onClose={() => setManagingHall(null)} />
+      )}
     </div>
   );
 }
 
-// ─── AUTH MODAL ───
+// ─── MANAGE SEATS MODAL ───
+function ManageSeatsModal({ hall, token, toast, onClose }) {
+  const [seats, setSeats] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedSeat, setSelectedSeat] = useState(null);
+  const [updating, setUpdating] = useState(false);
+
+  const loadSeats = async () => {
+    setLoading(true);
+    try {
+      const r = await authFetch(`${API}/halls/${hall.id}`, token);
+      if (r.ok) { const d = await r.json(); setSeats(d.seats || []); }
+      else toast("Could not load hall seats", "error");
+    } catch { toast("Connection error", "error"); }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadSeats(); }, [hall.id]);
+
+  const updateSeatType = async (seatId, seatType) => {
+    setUpdating(true);
+    try {
+      const r = await authFetch(`${API}/halls/${hall.id}/seats/${seatId}/type`, token, {
+        method: "PATCH",
+        body: JSON.stringify({ seatType })
+      });
+      if (r.ok || r.status === 204) {
+        setSeats(prev => prev.map(s => s.id === seatId ? { ...s, seatType } : s));
+        setSelectedSeat(prev => prev?.id === seatId ? { ...prev, seatType } : prev);
+        toast(`Seat updated to ${seatType}`, "success");
+      } else {
+        const err = await safeJson(r);
+        toast(err.message || "Could not update seat type", "error");
+      }
+    } catch { toast("Connection error", "error"); }
+    setUpdating(false);
+  };
+
+  const rows = (() => {
+    const rowMap = {};
+    seats.forEach(s => { if (!rowMap[s.row]) rowMap[s.row] = []; rowMap[s.row].push(s); });
+    return Object.entries(rowMap)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([rowLabel, rowSeats]) => ({ label: rowLabel, seats: rowSeats.sort((a, b) => a.number - b.number) }));
+  })();
+
+  const seatTypeClass = (type) => type === "Vip" ? "manage-seat-vip" : type === "Wheelchair" ? "manage-seat-wc" : "manage-seat-std";
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal" style={{ maxWidth: 640 }}>
+        <div className="modal-header">
+          <div className="modal-title">🏛 {hall.name} — Manage Seats</div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          {loading ? <div className="spinner" /> : (
+            <>
+              <div className="manage-seats-legend">
+                <div className="manage-legend-item"><div className="manage-legend-dot" style={{ background: "rgba(204,139,134,0.15)", border: "1px solid rgba(204,139,134,0.3)" }} />Standard</div>
+                <div className="manage-legend-item"><div className="manage-legend-dot" style={{ background: "rgba(212,168,67,0.2)", border: "1px solid rgba(212,168,67,0.5)", width: 15, height: 13 }} />VIP (+€5)</div>
+                <div className="manage-legend-item"><div className="manage-legend-dot" style={{ background: "rgba(100,149,237,0.15)", border: "1px solid rgba(100,149,237,0.4)" }} />Wheelchair</div>
+                <span style={{ marginLeft: "auto", fontSize: "0.75rem", color: "var(--text-muted)" }}>Click a seat to change its type</span>
+              </div>
+              <div className="manage-seats-grid">
+                {rows.map(row => (
+                  <div key={row.label} className="manage-seat-row">
+                    <span className="manage-seat-row-label">{row.label}</span>
+                    {row.seats.map(seat => (
+                      <button
+                        key={seat.id}
+                        className={`manage-seat ${seatTypeClass(seat.seatType)} ${selectedSeat?.id === seat.id ? "manage-seat-active" : ""}`}
+                        onClick={() => setSelectedSeat(selectedSeat?.id === seat.id ? null : seat)}
+                        title={`${seat.label} — ${seat.seatType}`}
+                      >
+                        {seat.number}
+                      </button>
+                    ))}
+                    <span className="manage-seat-row-label">{row.label}</span>
+                  </div>
+                ))}
+              </div>
+
+              {selectedSeat && (
+                <div className="seat-type-picker">
+                  <div className="seat-type-picker-title">
+                    Seat <strong style={{ color: "var(--rose)" }}>{selectedSeat.label}</strong> — currently <strong style={{ color: "var(--cream)" }}>{selectedSeat.seatType}</strong>
+                  </div>
+                  <div className="seat-type-btns">
+                    {["Standard", "Vip", "Wheelchair"].map(type => (
+                      <button
+                        key={type}
+                        className={`seat-type-btn t-${type.toLowerCase()} ${selectedSeat.seatType === type ? "active" : ""}`}
+                        onClick={() => selectedSeat.seatType !== type && updateSeatType(selectedSeat.id, type)}
+                        disabled={updating || selectedSeat.seatType === type}
+                      >
+                        {type === "Vip" ? "⭐ VIP" : type === "Wheelchair" ? "♿ Wheelchair" : "◾ Standard"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div style={{ marginTop: "1rem", fontSize: "0.8rem", color: "var(--text-muted)" }}>
+                {seats.filter(s => s.seatType === "Vip").length} VIP · {seats.filter(s => s.seatType === "Wheelchair").length} Wheelchair · {seats.filter(s => s.seatType === "Standard").length} Standard
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 function AuthModal({ mode, onClose, onLogin, switchMode, toast }) {
   const [form, setForm] = useState({ firstName: "", lastName: "", email: "", password: "" });
   const [loading, setLoading] = useState(false);
