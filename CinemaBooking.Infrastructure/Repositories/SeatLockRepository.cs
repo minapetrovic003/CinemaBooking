@@ -28,7 +28,6 @@ public class SeatLockRepository : ISeatLockRepository
 
     public void LockSeats(IEnumerable<SeatLock> locks)
     {
-        // Pre kreiranja novih, obrisi stare istekle lock-ove
         CleanupExpiredLocks();
         _context.SeatLocks.AddRange(locks);
     }
