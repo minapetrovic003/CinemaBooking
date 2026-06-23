@@ -13,7 +13,6 @@ public class PdfTicketService : IPdfTicketService
 {
     private readonly string _frontendUrl;
 
-   
     private static readonly TimeZoneInfo BelgradeTz = GetBelgradeTz();
 
     private static TimeZoneInfo GetBelgradeTz()
@@ -23,6 +22,7 @@ public class PdfTicketService : IPdfTicketService
             try { return TimeZoneInfo.FindSystemTimeZoneById(id); }
             catch { /* probaj sledeci */ }
         }
+
         return TimeZoneInfo.Utc;
     }
 
@@ -41,9 +41,11 @@ public class PdfTicketService : IPdfTicketService
     private static byte[] GenerateQrCode(Booking booking, string frontendUrl)
     {
         var payload = $"{frontendUrl}/#verify/{booking.Id}";
+
         using var qrGenerator = new QRCodeGenerator();
         using var qrData = qrGenerator.CreateQrCode(payload, QRCodeGenerator.ECCLevel.M);
         using var qrCode = new PngByteQRCode(qrData);
+
         return qrCode.GetGraphic(6);
     }
 
@@ -60,176 +62,315 @@ public class PdfTicketService : IPdfTicketService
 
         var seatLabel = string.Join(", ", booking.BookingSeats.Select(bs => bs.GetSeatLabel()));
 
-        var darkBg = Color.FromHex("#1a0e0e");
+        var pageBg = Color.FromHex("#080606");
+        var cardBg = Color.FromHex("#1A1111");
+        var darkBg = Color.FromHex("#160909");
+        var darkBox = Color.FromHex("#241313");
+        var border = Color.FromHex("#3A2323");
         var accentRed = Color.FromHex("#CC8B86");
-        var midGray = Color.FromHex("#6c757d");
-        var lightBg = Color.FromHex("#f8f9fa");
+        var accentGold = Color.FromHex("#D8C7A3");
+        var textMain = Color.FromHex("#F7EFE7");
+        var textMuted = Color.FromHex("#BFA7A1");
+        var textSoft = Color.FromHex("#8E7C78");
+        var successBg = Color.FromHex("#20291D");
+        var successText = Color.FromHex("#82D982");
 
         return Document.Create(container =>
         {
             container.Page(page =>
             {
-                // Jedan A5-landscape list
-                page.Size(PageSizes.A5.Landscape());
+                page.Size(PageSizes.A4.Landscape());
                 page.Margin(0);
-                page.DefaultTextStyle(x => x.FontFamily("Arial").FontSize(9));
+                page.DefaultTextStyle(x => x.FontFamily("Arial").FontSize(9).FontColor(textMain));
 
-                page.Content().Row(row =>
-                {
-                    // ── Lijeva tamna kolona ──────────────────────────────
-                    row.ConstantItem(200)
-                        .Background(darkBg)
-                        .Padding(18)
-                        .Column(left =>
-                        {
-                            left.Item()
-                                .Text("CinemaVerse")
-                                .FontSize(13).Bold().FontColor(Colors.White);
-
-                            left.Item()
-                                .PaddingTop(2)
-                                .Text("Cinema Ticket")
-                                .FontSize(8).FontColor(accentRed);
-
-                            left.Item()
-                                .PaddingTop(14)
-                                .LineHorizontal(1)
-                                .LineColor(Color.FromHex("#33FFFFFF"));
-
-                            left.Item()
-                                .PaddingTop(10)
-                                .Column(info =>
-                                {
-                                    LeftLabelValue(info, "Movie", movieTitle, Colors.White, accentRed);
-                                    LeftLabelValue(info, "Date",
-                                        startLocal.ToString("dd.MM.yyyy"),
-                                        Colors.White, Colors.White);
-                                    LeftLabelValue(info, "Time",
-                                        startLocal.ToString("HH:mm"),
-                                        Colors.White, Colors.White);
-                                    LeftLabelValue(info, "Hall", hallName, Colors.White, Colors.White);
-                                    LeftLabelValue(info, "Seats", seatLabel, Colors.White, Colors.White);
-                                    LeftLabelValue(info, "Total",
-                                        $"€{booking.TotalPrice:F2}",
-                                        Colors.White, Colors.White);
-                                });
-
-                            left.Item().Extend();
-
-                            left.Item()
-                                .Background(Color.FromHex("#14090a"))
-                                .Padding(8)
-                                .Column(c =>
-                                {
-                                    c.Item().Text("BOOKING")
-                                        .FontSize(7).FontColor(midGray).LetterSpacing(2);
-                                    c.Item().Text($"#{booking.Id:D8}")
-                                        .FontSize(14).Bold().FontColor(accentRed);
-                                });
-                        });
-
-                    // ── Desna bijela kolona ──────────────────────────────
-                    row.RelativeItem()
-                        .Background(Colors.White)
-                        .Column(right =>
-                        {
-                            // Header
-                            right.Item()
-                                .Background(lightBg)
-                                .Padding(12)
-                                .Column(hc =>
-                                {
-                                    hc.Item().Text(movieTitle)
-                                        .FontSize(14).Bold().FontColor(darkBg);
-                                    hc.Item().Text(
-                                        startLocal.ToString("dddd, dd MMMM yyyy",
-                                            System.Globalization.CultureInfo.GetCultureInfo("sr-Latn-RS")))
-                                        .FontSize(8).FontColor(midGray);
-                                });
-
-                            // Customer + details (kompaktno, sve na jednoj stranici)
-                            right.Item()
-                                .Padding(12)
-                                .Column(details =>
-                                {
-                                    details.Item().Text("CUSTOMER")
-                                        .FontSize(6).FontColor(midGray).LetterSpacing(1.5f);
-                                    details.Item().PaddingTop(4).Column(uc =>
+                page.Content()
+                    .Background(pageBg)
+                    .Padding(34)
+                    .Column(pageColumn =>
+                    {
+                        pageColumn.Item()
+                            .Border(1)
+                            .BorderColor(border)
+                            .Background(cardBg)
+                            .Row(row =>
+                            {
+                                // LEVI DEO KARTE
+                                row.ConstantItem(260)
+                                    .Background(darkBg)
+                                    .Padding(22)
+                                    .Column(left =>
                                     {
-                                        DetailRow(uc, "Name", user.FullName);
-                                        DetailRow(uc, "Email", user.Email);
+                                        left.Item()
+                                            .Text("CinemaVerse")
+                                            .FontSize(20)
+                                            .Bold()
+                                            .FontColor(accentGold);
+
+                                        left.Item()
+                                            .PaddingTop(3)
+                                            .Text("Cinema Ticket")
+                                            .FontSize(9)
+                                            .FontColor(accentRed);
+
+                                        left.Item()
+                                            .PaddingTop(18)
+                                            .LineHorizontal(1)
+                                            .LineColor(Color.FromHex("#4A2C2C"));
+
+                                        left.Item()
+                                            .PaddingTop(18)
+                                            .Column(info =>
+                                            {
+                                                LeftLabelValue(info, "Movie", movieTitle, textMain, accentRed);
+                                                LeftLabelValue(info, "Date", startLocal.ToString("dd.MM.yyyy"), textMain, textSoft);
+                                                LeftLabelValue(info, "Time", startLocal.ToString("HH:mm"), textMain, textSoft);
+                                                LeftLabelValue(info, "Hall", hallName, textMain, textSoft);
+                                                LeftLabelValue(info, "Seats", seatLabel, textMain, textSoft);
+                                                LeftLabelValue(info, "Total", $"€{booking.TotalPrice:F2}", accentRed, textSoft);
+                                            });
+
+                                        left.Item()
+                                            .PaddingTop(22)
+                                            .Background(Color.FromHex("#100707"))
+                                            .Border(1)
+                                            .BorderColor(Color.FromHex("#2C1919"))
+                                            .Padding(12)
+                                            .Column(c =>
+                                            {
+                                                c.Item()
+                                                    .Text("BOOKING")
+                                                    .FontSize(7)
+                                                    .FontColor(textSoft)
+                                                    .LetterSpacing(3);
+
+                                                c.Item()
+                                                    .PaddingTop(3)
+                                                    .Text($"#{booking.Id:D8}")
+                                                    .FontSize(18)
+                                                    .Bold()
+                                                    .FontColor(accentRed);
+                                            });
                                     });
 
-                                    details.Item().PaddingTop(8).Text("SCREENING")
-                                        .FontSize(6).FontColor(midGray).LetterSpacing(1.5f);
-                                    details.Item().PaddingTop(4).Column(pc =>
+                                // DESNI DEO KARTE
+                                row.RelativeItem()
+                                    .Background(Color.FromHex("#0F0A0A"))
+                                    .Padding(24)
+                                    .Column(right =>
                                     {
-                                        DetailRow(pc, "Movie", movieTitle);
-                                        DetailRow(pc, "Hall", hallName);
-                                        DetailRow(pc, "Seats", seatLabel);
-                                        DetailRow(pc, "Booked", booking.CreatedAt
-                                            .ToString("dd.MM.yyyy HH:mm") + " UTC");
-                                        DetailRow(pc, "Price", $"€{booking.TotalPrice:F2}");
+                                        // Header
+                                        right.Item()
+                                            .Row(header =>
+                                            {
+                                                header.RelativeItem()
+                                                    .Column(hc =>
+                                                    {
+                                                        hc.Item()
+                                                            .Text(movieTitle)
+                                                            .FontSize(24)
+                                                            .Bold()
+                                                            .FontColor(textMain);
+
+                                                        hc.Item()
+                                                            .PaddingTop(4)
+                                                            .Text(startLocal.ToString(
+                                                                "dddd, dd MMMM yyyy",
+                                                                System.Globalization.CultureInfo.GetCultureInfo("sr-Latn-RS")))
+                                                            .FontSize(10)
+                                                            .FontColor(textMuted);
+                                                    });
+
+                                                header.AutoItem()
+                                                    .Background(successBg)
+                                                    .PaddingHorizontal(12)
+                                                    .PaddingVertical(7)
+                                                    .Text("CONFIRMED")
+                                                    .FontSize(9)
+                                                    .Bold()
+                                                    .FontColor(successText)
+                                                    .LetterSpacing(1);
+                                            });
+
+                                        right.Item()
+                                            .PaddingTop(18)
+                                            .LineHorizontal(1)
+                                            .LineColor(border);
+
+                                        // Srednji deo: detalji + QR kod
+                                        right.Item()
+                                            .PaddingTop(20)
+                                            .Row(content =>
+                                            {
+                                                content.RelativeItem()
+                                                    .Column(details =>
+                                                    {
+                                                        details.Item()
+                                                            .Text("CUSTOMER")
+                                                            .FontSize(7)
+                                                            .FontColor(textSoft)
+                                                            .LetterSpacing(4);
+
+                                                        details.Item()
+                                                            .PaddingTop(8)
+                                                            .Background(darkBox)
+                                                            .Border(1)
+                                                            .BorderColor(border)
+                                                            .Padding(12)
+                                                            .Column(uc =>
+                                                            {
+                                                                DetailRow(uc, "Name", user.FullName, textMuted, textMain);
+                                                                DetailRow(uc, "Email", user.Email, textMuted, textMain);
+                                                            });
+
+                                                        details.Item()
+                                                            .PaddingTop(16)
+                                                            .Text("SCREENING")
+                                                            .FontSize(7)
+                                                            .FontColor(textSoft)
+                                                            .LetterSpacing(4);
+
+                                                        details.Item()
+                                                            .PaddingTop(8)
+                                                            .Background(darkBox)
+                                                            .Border(1)
+                                                            .BorderColor(border)
+                                                            .Padding(12)
+                                                            .Column(pc =>
+                                                            {
+                                                                DetailRow(pc, "Movie", movieTitle, textMuted, textMain);
+                                                                DetailRow(pc, "Hall", hallName, textMuted, textMain);
+                                                                DetailRow(pc, "Seats", seatLabel, textMuted, textMain);
+                                                                DetailRow(pc, "Booked", booking.CreatedAt.ToString("dd.MM.yyyy HH:mm") + " UTC", textMuted, textMain);
+                                                                DetailRow(pc, "Price", $"€{booking.TotalPrice:F2}", textMuted, accentRed);
+                                                            });
+                                                    });
+
+                                                content.ConstantItem(190)
+                                                    .PaddingLeft(24)
+                                                    .Column(qrSection =>
+                                                    {
+                                                        qrSection.Item()
+                                                            .AlignCenter()
+                                                            .Background(Colors.White)
+                                                            .Padding(10)
+                                                            .Width(120)
+                                                            .Height(120)
+                                                            .Image(qrBytes);
+
+                                                        qrSection.Item()
+                                                            .PaddingTop(8)
+                                                            .AlignCenter()
+                                                            .Text("Scan to check in")
+                                                            .FontSize(8)
+                                                            .FontColor(textMuted);
+
+                                                        qrSection.Item()
+                                                            .PaddingTop(16)
+                                                            .AlignCenter()
+                                                            .Text($"Booking #{booking.Id:D8}")
+                                                            .FontSize(11)
+                                                            .Bold()
+                                                            .FontColor(accentRed);
+
+                                                        qrSection.Item()
+                                                            .PaddingTop(5)
+                                                            .AlignCenter()
+                                                            .Text("Present this ticket at the entrance.")
+                                                            .FontSize(8)
+                                                            .FontColor(textMuted);
+
+                                                        qrSection.Item()
+                                                            .PaddingTop(14)
+                                                            .Border(1)
+                                                            .BorderColor(border)
+                                                            .Background(Color.FromHex("#140B0B"))
+                                                            .Padding(9)
+                                                            .AlignCenter()
+                                                            .Text($"€{booking.TotalPrice:F2}")
+                                                            .FontSize(18)
+                                                            .Bold()
+                                                            .FontColor(accentRed);
+                                                    });
+                                            });
+
+                                        // Footer
+                                        right.Item()
+                                            .PaddingTop(18)
+                                            .LineHorizontal(1)
+                                            .LineColor(border);
+
+                                        right.Item()
+                                            .PaddingTop(10)
+                                            .Row(footer =>
+                                            {
+                                                footer.RelativeItem()
+                                                    .Text("© CinemaVerse — automated message")
+                                                    .FontSize(7)
+                                                    .FontColor(Color.FromHex("#5F4A4A"));
+
+                                                footer.AutoItem()
+                                                    .Text("Valid only for selected screening and seats.")
+                                                    .FontSize(7)
+                                                    .FontColor(Color.FromHex("#5F4A4A"));
+                                            });
                                     });
-                                });
+                            });
 
-                            right.Item().Extend();
-
-                            // Footer: QR kod + info
-                            right.Item()
-                                .Padding(12)
-                                .Row(footer =>
-                                {
-                                    footer.AutoItem().Column(qrCol =>
-                                    {
-                                        qrCol.Item().Width(70).Height(70).Image(qrBytes);
-                                        qrCol.Item().PaddingTop(2)
-                                            .Text("Scan to check in")
-                                            .FontSize(5).FontColor(midGray).AlignCenter();
-                                    });
-
-                                    footer.RelativeItem().PaddingLeft(10).Column(fc =>
-                                    {
-                                        fc.Item().Extend();
-                                        fc.Item().Text($"Booking #{booking.Id:D8}")
-                                            .FontSize(7).Bold().FontColor(darkBg);
-                                        fc.Item().Text("Present this ticket at the entrance.")
-                                            .FontSize(6).FontColor(midGray);
-                                        fc.Item().PaddingTop(3)
-                                            .Text("© CinemaVerse — automated message")
-                                            .FontSize(5).FontColor(Color.FromHex("#dee2e6"));
-                                    });
-                                });
-
-                            // Dekorativna linija na dnu
-                            right.Item().Height(5).Background(accentRed);
-                        });
-                });
+                        pageColumn.Item()
+                            .Height(5)
+                            .Background(accentRed);
+                    });
             });
         }).GeneratePdf();
     }
 
     private static void LeftLabelValue(
-        ColumnDescriptor col, string label, string value,
-        string valueColor, string labelColor)
+        ColumnDescriptor col,
+        string label,
+        string value,
+        string valueColor,
+        string labelColor)
     {
-        col.Item().PaddingTop(6).Column(c =>
-        {
-            c.Item().Text(label.ToUpper())
-                .FontSize(6).FontColor(labelColor).LetterSpacing(1);
-            c.Item().PaddingTop(1).Text(value)
-                .FontSize(9).Bold().FontColor(valueColor);
-        });
+        col.Item()
+            .PaddingTop(9)
+            .Column(c =>
+            {
+                c.Item()
+                    .Text(label.ToUpper())
+                    .FontSize(6)
+                    .FontColor(labelColor)
+                    .LetterSpacing(4);
+
+                c.Item()
+                    .PaddingTop(3)
+                    .Text(value)
+                    .FontSize(11)
+                    .Bold()
+                    .FontColor(valueColor);
+            });
     }
 
-    private static void DetailRow(ColumnDescriptor col, string label, string value)
+    private static void DetailRow(
+        ColumnDescriptor col,
+        string label,
+        string value,
+        string labelColor,
+        string valueColor)
     {
-        col.Item().PaddingTop(3).Row(r =>
-        {
-            r.ConstantItem(55).Text(label + ":")
-                .FontSize(7).FontColor(Color.FromHex("#6c757d"));
-            r.RelativeItem().Text(value)
-                .FontSize(7).Bold().FontColor(Color.FromHex("#1a0e0e"));
-        });
+        col.Item()
+            .PaddingTop(5)
+            .Row(r =>
+            {
+                r.ConstantItem(70)
+                    .Text(label + ":")
+                    .FontSize(8)
+                    .FontColor(labelColor);
+
+                r.RelativeItem()
+                    .Text(value)
+                    .FontSize(8)
+                    .Bold()
+                    .FontColor(valueColor);
+            });
     }
 }

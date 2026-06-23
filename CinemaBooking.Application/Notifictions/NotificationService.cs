@@ -34,9 +34,6 @@ public class NotificationService : INotificationService
         return local.ToString("dd.MM.yyyy HH:mm");
     }
 
-    // -----------------------------------------------------------------------
-    // Osnovna metoda — opcionalni PDF prilog
-    // -----------------------------------------------------------------------
     public async Task SendEmailAsync(
         string toEmail,
         string toName,
@@ -86,9 +83,6 @@ public class NotificationService : INotificationService
             subject, toEmail, attachmentBytes is { Length: > 0 });
     }
 
-    // -----------------------------------------------------------------------
-    // Potvrda rezervacije (šalje se nakon plaćanja) — email + PDF karta
-    // -----------------------------------------------------------------------
     public async Task SendBookingConfirmationAsync(
         Booking booking,
         UserInfo user,
@@ -171,9 +165,6 @@ public class NotificationService : INotificationService
             cancellationToken);
     }
 
-    // -----------------------------------------------------------------------
-    // Otkazivanje — samo email, bez PDF
-    // -----------------------------------------------------------------------
     public async Task SendCancellationNoticeAsync(
         Booking booking,
         UserInfo user,
@@ -232,9 +223,6 @@ public class NotificationService : INotificationService
             cancellationToken: cancellationToken);
     }
 
-    // -----------------------------------------------------------------------
-    // Potvrda plaćanja
-    // -----------------------------------------------------------------------
     public async Task SendPaymentConfirmationAsync(
         Payment payment,
         UserInfo user,
@@ -290,9 +278,6 @@ public class NotificationService : INotificationService
             cancellationToken: cancellationToken);
     }
 
-    // -----------------------------------------------------------------------
-    // Potvrda povrata novca
-    // -----------------------------------------------------------------------
     public async Task SendRefundConfirmationAsync(
         Payment payment,
         UserInfo user,
