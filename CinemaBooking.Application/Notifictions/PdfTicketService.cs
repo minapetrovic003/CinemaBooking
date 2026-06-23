@@ -175,7 +175,7 @@ public class PdfTicketService : IPdfTicketService
                                                             .PaddingTop(4)
                                                             .Text(startLocal.ToString(
                                                                 "dddd, dd MMMM yyyy",
-                                                                System.Globalization.CultureInfo.GetCultureInfo("sr-Latn-RS")))
+                                                                System.Globalization.CultureInfo.GetCultureInfo("en-US")))
                                                             .FontSize(10)
                                                             .FontColor(textMuted);
                                                     });
